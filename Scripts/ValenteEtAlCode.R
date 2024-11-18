@@ -1,15 +1,43 @@
 
-#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-#load("CodeForManuscript.RData")
-# load("C:/Users/Jonathon/Documents/Marbled Murrelets/Fragmentation/CodeForManuscript.RData")
-# load('C:/Users/Jonathon/Documents/Marbled Murrelets/Fragmentation/ManuscriptResults.RData')
-
 # Load required libraries for data manipulation and occupancy modeling
 library(tidyverse)
 library(unmarked)
 
 #read in murrelet data 
 load("Inputs/ValenteEtAlEnvironment.RData")
+
+#Information on predictor variables ####
+        
+
+        #ownership:  federal (e.g., national parks and forests), state (e.g., state parks and forests), private industrial (predominantly forest industry lands), private nonindustrial (e.g., small family-owned land holdings), and other (e.g., lands owned by local governments, Indigenous peoples, or under private conservation easements)
+        
+        #MODEL COVARIATES 
+        # meanCanopy100: Mean canopy cover within a 100-meter radius
+        # meanConDens100: Mean coniferous tree density within 100 meters
+        # meanCoastDist: Mean distance to coast from each site,
+        # meanhabAmountDich2000: Mean dichotomized habitat amount within 2000 meters (landscape-level)
+        # meanHabAmountDich100: Mean dichotomized habitat amount within 100 meters.
+        # meanYoungPlusNonFor2000: Mean proportion of young forest plus non-forest areas within 2000 meters, indicating early-successional habitat.
+        # meanYoungPlusNonFor100: Mean proportion of young forest plus non-forest areas within 100 meters.
+        # meanEdgeRook2000: Mean edge density (rook length) within 2000 meters
+        # meanEdgeRook100: Mean edge density within 100 meters.
+        # meanDoy: Mean day of the year (DOY) for surveys, accounting for seasonal changes.
+        # meanEdgeArea100: Mean edge area within 100 meters
+        # meanEdgeArea2000: Mean edge area within 2000 meters
+        
+        # sdCanopy100: Standard deviation of canopy cover within 100 meters.
+        # sdConDens100: Standard deviation of coniferous tree density within 100 meters.
+        # sdCoastDist: Standard deviation of distance to coast.
+        # sdhabAmountDich2000: Standard deviation of dichotomized habitat amount within 2000 meters.
+        # sdHabAmountDich100: Standard deviation of dichotomized habitat amount within 100 meters.
+        # sdYoungPlusNonFor2000: Standard deviation of young forest plus non-forest areas within 2000 meters.
+        # sdYoungPlusNonFor100: Standard deviation of young forest plus non-forest areas within 100 meters.
+        # sdEdgeRook2000: Standard deviation of edge density within 2000 meters.
+        # sdEdgeRook100: Standard deviation of edge density within 100 meters.
+        # sdDoy: Standard deviation of day of the year (DOY) for surveys.
+        # sdEdgeArea100: Standard deviation of edge area within 100 meters.
+        # sdEdgeArea2000: Standard deviation of edge area within 2000 meters.
+
 
 # Analysis setup
 # Filter `siteData` to include only sites with a specific edge condition (e.g., gt2kmFakeEdge==1) 
@@ -149,7 +177,7 @@ Sys.time() - a
 # Save final model results
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
 
-# 5. Additional model exploring coastal distance and fragmentation interactions
+# 6. Additional model exploring coastal distance and fragmentation interactions
 a = Sys.time()
 model3 = occu(~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ scaleCoastDist + as.factor(year) + scaleHabAmount100 + scaleEdgeDens100 + scaleCoastDist * scaleEdgeDens100 + scaleHabAmount2000 + scaleEdgeDens2000 + scaleCoastDist * scaleEdgeDens2000, data = analysisData,
               starts = coef(model2))
