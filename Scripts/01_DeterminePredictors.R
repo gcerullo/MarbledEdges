@@ -60,3 +60,5 @@ PC1 %>%
     axis.title = element_text(size = 14)
   )
 
+#save outputs #### 
+write.csv(PC1, "Outputs/PC1_scaled_inverted.csv")
