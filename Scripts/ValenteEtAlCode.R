@@ -2,9 +2,21 @@
 # Load required libraries for data manipulation and occupancy modeling
 library(tidyverse)
 library(unmarked)
+library(terra)
 
 #read in murrelet data 
 load("Inputs/ValenteEtAlEnvironment.RData")
+
+#save outputs as csvs 
+write.csv(landscapeVars, "Inputs/LandscapeVariables.csv")
+write.csv(siteData, "Inputs/SiteData.csv")
+write.csv(surveys, "Inputs/MurreletSurveys.csv")
+write.csv(pointsInRoiAndSamplingWindow, "Inputs/pointsInRoiAndSamplingWindow.csv")
+
+#export site id and location to extract age locations for each point: 
+spatialSites <- analysisSites %>%  select(id, year, utmN, utmE)
+plot(spatialSites)
+write.csv(spatialSites,"Outputs/murrelet_samplingSites.csv")
 
 #Information on predictor variables ####
         

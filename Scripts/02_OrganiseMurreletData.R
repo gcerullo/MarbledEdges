@@ -109,19 +109,20 @@ detections %>% count() #915 individual detections from 31,879 surveys
 # Standardize selected variables in `analysisSites` (centered and scaled) for later modeling
 #PC1 has already been scaled in prev script (01)
 analysisSites = analysisSites %>% 
-  mutate(scaleCanopy100 = scale(canopy100),
-         scaleConDens100 = scale(conDens100),
-         scaleCoastDist = scale(coastDist),
-         scaleHabAmount2000 = scale(habAmountDich_2000),
-         scaleHabAmount100 = scale(habAmountDich_100),
-         scaleYoungPlusNonFor2000 = scale(youngPlusNonFor_2000_40),
-         scaleYoungPlusNonFor100 = scale(youngPlusNonFor_100_40),
-         scaleEdgeDens2000 = scale(edgeRook_2000_40),
-         scaleEdgeDens100 = scale(edgeRook_100_40),
-         scaleEdgeArea100 = scale(edgeArea100),
-         scaleEdgeArea2000 = scale(edgeArea2000),
-         scaleUtmN = scale(utmN)) %>% 
-  arrange(id)
+  mutate(scaleCanopy100 = scale(canopy100, center=T, scale=T),
+         scaleConDens100 = scale(conDens100, center=T, scale=T),
+         scaleCoastDist = scale(coastDist, center=T, scale=T),
+         scaleHabAmount2000 = scale(habAmountDich_2000, center=T, scale=T),
+         scaleHabAmount100 = scale(habAmountDich_100, center=T, scale=T),
+         scaleYoungPlusNonFor2000 = scale(youngPlusNonFor_2000_40, center=T, scale=T),
+         scaleYoungPlusNonFor100 = scale(youngPlusNonFor_100_40, center=T, scale=T),
+         scaleEdgeDens2000 = scale(edgeRook_2000_40, center=T, scale=T),
+         scaleEdgeDens100 = scale(edgeRook_100_40, center=T, scale=T),
+         scaleEdgeArea100 = scale(edgeArea100, center=T, scale=T),
+         scaleEdgeArea2000 = scale(edgeArea2000, center=T, scale=T),
+         scaleUtmN = scale(utmN, center=T, scale=T)) %>% 
+  arrange(id)%>% 
+  select(-X)
 
 # Standardize day-of-year variable `doy` in `analysisSurveys`
 # Creates a squared version `scaleDoy2` for non-linear effects in later modeling
