@@ -40,28 +40,29 @@ plogis(-1.6) # baseline occupancy is about 16% (need to transform back to native
 
 # Step 3: Adding a Site Covariate - Distance to Coast
 # ---------------------------------------------------
-# Introduce `PC1` as a site covariate to explain occupancy.
+# Introduce `scaleCoastDist` as a site covariate to explain occupancy.
 dist_model <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2  ~ scaleCoastDist, # detection
-                                                                        # occupancy
+  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 # detection
+  ~ scaleCoastDist,  # occupancy
+                                                                       
   data = analysisData,
-  starts <- c(
-    coef(simple_detection_model)[1],    # Occupancy intercept - we use baseline occ from prev model
+  starts = c(
+    coef(simple_detection_model)[1],  # Occupancy intercept - we use baseline occ from prev model
     0,                                 # Placeholder for new occupancy covariate (`scaleCoastDist`)
-    coef(simple_detection_model)[2:10] # Detection coefficients for the 9 
+    coef(simple_detection_model)[2:10] # Detection coefficients for the 9 detection coefficients 
   ))
   
-  
- # starts = c(coef(simple_detection_model)[1], 0, coef(simple_detection_model)[2:11]))
-
-  starts = c(-1.6, 0, coef(simple_detection_model)[1:9]))  # Provide 11 starting values
-
-#-1.6: Initial value for the occupancy intercept (from simple_detection_model).
-#0: Initial value for scaleCoastDist (new parameter for occupancy).
-#coef(simple_detection_model)[1:9]: Coefficients for detection (9 parameters from simple_detection_model).
-
-print(Sys.time() - start_time)
-
+# # Step 3a: Adding a Site PCI covariate (instead of  Distance to Coast)
+# # ---------------------------------------------------
+# PC1_model <- occu(
+#   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2  
+#   ~ PC1, # occupancy
+#   data = analysisData,
+#   starts = c(
+#     coef(simple_detection_model)[1],  # Occupancy intercept - we use baseline occ from prev model
+#     0,                                 # Placeholder for new occupancy covariate (`scaleCoastDist`)
+#     coef(simple_detection_model)[2:10] # Detection coefficients for the 9 detection coefficients 
+#   ))
 
 # Step 4: Adding Year as a Factor
 # --------------------------------
@@ -73,7 +74,7 @@ year_model <- occu(
   data = analysisData,
   starts = c(
     coef(dist_model)[1:2],  # Existing occupancy coefficients
-    rep(0, 27),            # Starting values for year dummy variables
+    rep(0, 18),            # Starting values for year dummy variables
     coef(dist_model)[3:11]  # Detection coefficients
   )
 )
@@ -90,7 +91,10 @@ model_with_habitat <- occu(
   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
     scaleCoastDist + as.factor(year) + scaleHabAmount100 + scaleEdgeDens100 + scaleHabAmount2000 + scaleEdgeDens2000,
   data = analysisData,
-  starts = c(coef(year_model)[1:30], rep(0, 4), coef(year_model)[31:40])
+  starts = c(
+    coef(year_model)[1:30],
+    rep(0, 4),
+    coef(year_model)[31:40])
 )
 print(Sys.time() - start_time)
 
