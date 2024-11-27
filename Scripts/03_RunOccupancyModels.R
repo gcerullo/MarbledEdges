@@ -36,70 +36,40 @@ simple_detection_model <- occu(
 )
 print(Sys.time() - start_time)  # Print runtime
 
-plogis(-1.6) # baseline occupancy is about 16% (need to transform back to native scale; as outcome is on logit scale)
+plogis(-1.7) # baseline occupancy is about 15% (need to transform back to native scale; as outcome is on logit scale)
 
-# # Step 3a: Adding a Site PCI covariate (instead of  Distance to Coast)
-# # ---------------------------------------------------
-PC1_model <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2
-  ~ PC1, # occupancy
+# Step 3: Adding a Site Covariate - Distance to Coast
+# ---------------------------------------------------
+# Introduce `scaleCoastDist` and PC1 in year t-1 as a site covariate to explain occupancy.
+dist_model <- occu(
+  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 # detection
+  ~ PC1_t1 + scaleCoastDist,  # occupancy
+                                                                       
   data = analysisData,
   starts = c(
     coef(simple_detection_model)[1],  # Occupancy intercept - we use baseline occ from prev model
-    0,                                 # Placeholder for new occupancy covariate (`scaleCoastDist`)
-    coef(simple_detection_model)[2:10] # Detection coefficients for the 9 detection coefficients
-  ))
-
-# Step 3b: Adding a Site Covariate - Distance to Coast
-# ---------------------------------------------------
-# Introduce `scaleCoastDist` as a site covariate to explain occupancy.
-dist_model <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2  # detection
-  ~ PC1 + scaleCoastDist ,  # occupancy
-   data = analysisData,
-  starts = c(
-    coef(PC1_model)[1:2],  # Occupancy intercept - we use baseline occ from prev model
-    0,                                 # Placeholder for new occupancy covariate (`scaleCoastDist`)
-    coef(PC1_model)[3:11] # Detection coefficients for the 9 detection coefficients 
+    0,0,                                 # Placeholder for new occupancy covariate (`scaleCoastDist`)
+    coef(simple_detection_model)[2:10] # Detection coefficients for the 9 detection coefficients 
   ))
   
-
-
-# Step 4: Adding Year as a Factor 
+# Step 4: Adding Year as a Factor # this break - cant have year and PC1 in the same model 
 # --------------------------------
-# Include year as a categorical covariate to account for temporal effects on occupancy.
-start_time <- Sys.time()
-year_model <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2
-  ~ scaleCoastDist + as.factor(year),
-  data = analysisData,
-  starts = c(
-    coef(dist_model)[1:2],  # Existing occupancy coefficients
-    rep(0, 18),            # Starting values for year dummy variables
-    coef(dist_model)[3:11]  # Detection coefficients
-  )
-)
-print(Sys.time() - start_time)
+# # Include year as a categorical covariate to account for temporal effects on occupancy.
+# start_time <- Sys.time()
+# year_model <- occu(
+#   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2
+#   ~ scaleCoastDist + PC1 + as.factor(year),
+#   data = analysisData,
+#   starts = c(
+#     coef(dist_model)[1:2],  # Existing occupancy coefficients
+#     rep(0, 18),            # Starting values for year dummy variables
+#     coef(dist_model)[3:11]  # Detection coefficients
+#   )
+# )
+# print(Sys.time() - start_time)
 
-# Save intermediate results to a file for faster reupload
+# Save intermediate results to a file for reproducibility
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
-
-# Step 4a: Adding PC1 as a factor
-# --------------------------------
-# Include year as a categorical covariate to account for temporal effects on occupancy.
-start_time <- Sys.time()
-year_model_PC1 <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2
-  ~ scaleCoastDist + as.factor(year) +PC1 ,
-  data = analysisData,
-  starts = c(
-    coef(dist_model)[1:2],  # Existing occupancy coefficients
-    rep(0, 18),             # Starting values for year dummy variables
-    0,                      # Starting value for PC1
-    coef(dist_model)[3:11]  # Detection coefficients
-  )
-)
-print(Sys.time() - start_time)
 
 # Step 5: Habitat Amount and Edge Metrics at Multiple Scales
 # ------------------------------------------------------------
@@ -107,12 +77,12 @@ print(Sys.time() - start_time)
 start_time <- Sys.time()
 model_with_habitat <- occu(
   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-    scaleCoastDist + as.factor(year) + scaleHabAmount100 + scaleEdgeDens100 + scaleHabAmount2000 + scaleEdgeDens2000,
+    PC1_t1 + scaleCoastDist +  + scaleHabAmount100 + scaleEdgeDens100 + scaleHabAmount2000 + scaleEdgeDens2000,
   data = analysisData,
   starts = c(
-    coef(year_model)[1:20],
+    coef(dist_model)[1:3],
     rep(0, 4),
-    coef(year_model)[21:29])
+    coef(dist_model)[4:12])
 )
 print(Sys.time() - start_time)
 
@@ -125,34 +95,46 @@ save(list = ls(), file = 'Models/ManuscriptResults.RData')
 start_time <- Sys.time()
 model_with_interactions <- occu(
   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-    scaleCoastDist + as.factor(year) + scaleHabAmount100 + scaleEdgeDens100 + scaleHabAmount100 * scaleEdgeDens100 + 
+    PC1_t1 + scaleCoastDist + scaleHabAmount100 + scaleEdgeDens100 + scaleHabAmount100 * scaleEdgeDens100 + 
     scaleHabAmount2000 + scaleEdgeDens2000 + scaleHabAmount2000 * scaleEdgeDens2000,
   data = analysisData,
-  starts = c(coef(model_with_habitat)[1:24], 
-             0,0, 
-             coef(model_with_habitat)[25:33]))
+  starts = c(coef(model_with_habitat)[1:7],
+          rep(0,2),
+          coef(model_with_habitat)[8:16]))
 
 print(Sys.time() - start_time)
 
 # Save results for interaction model
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
 
-# Step 7: Adding Coastal Distance and Edge Interactions
+# Step 7: Adding PC1 and Edge Interactions
 # ------------------------------------------------------
-# Explore interactions between `PC1` and edge density metrics.
+# Explore interactions between `scaleCoastDist` and edge density metrics.
 start_time <- Sys.time()
-PC1_interaction_model <- occu(
+coastal_interaction_model <- occu(
   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-    scaleCoastDist + as.factor(year) + scaleHabAmount100 + scaleEdgeDens100 + PC1 * scaleEdgeDens100 + 
-    scaleHabAmount2000 + scaleEdgeDens2000 + PC1 * scaleEdgeDens2000,
+    PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + scaleCoastDist * scaleEdgeDens100 + 
+    scaleHabAmount2000 + scaleEdgeDens2000 + scaleCoastDist * scaleEdgeDens2000,
   data = analysisData,
-  starts = c(coef(model_with_interactions) # Use previous model's coefficients
-             ,0)  #NOTE; NEED TO ADD PC1 AS A STANDALONE PREDICTOR TO PREVIOUS MODELS!!!! 
+  starts = coef(model_with_interactions)  # Use previous model's coefficients
 )
 print(Sys.time() - start_time)
 
 # Save results
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
+
+# Step 8: Adding Interactions with PCA1
+# ---------------------------------------
+# Incorporate `PC1` as a site covariate and include interaction terms with edge density.
+start_time <- Sys.time()
+pc1_interaction_model <- occu(
+  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
+    PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + 
+    scaleEdgeDens100 * PC1_t1 + scaleHabAmount2000 + scaleEdgeDens2000 + PC1_t1 * scaleEdgeDens2000,
+  data = analysisData,
+  starts = c(coef(coastal_interaction_model))
+)
+print(Sys.time() - start_time)
 
 # Save final results
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
