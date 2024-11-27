@@ -138,3 +138,6 @@ print(Sys.time() - start_time)
 
 # Save final results
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
+saveRDS(pc1_interaction_model,"Models/pc1_interaction_model.rds")
+
+
