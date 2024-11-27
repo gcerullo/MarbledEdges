@@ -48,11 +48,18 @@ surveys  <- read.csv("Inputs/MurreletSurveys.csv") %>% select(-X)
 pointsInRoiAndSamplingWindow  <- read.csv("Inputs/pointsInRoiAndSamplingWindow.csv")
 
 #read in PC1 data
-PC1 <- read.csv("Outputs/PC1_scaled_inverted.csv") %>%  
+PC1_all <- read.csv("Outputs/PC1_scaled_inverted.csv") %>%  
   select(Value_scaled, Year) %>%  #select PC1 which has already been inverted and scaled
   rename(PC1 = Value_scaled, 
-         year = Year)
-earliest_PC1_year <- PC1 %>% filter(year == min(year)) %>%  pull()
+         year = Year) %>%  
+  mutate(year_t1 = year +1, 
+#give PC1 value for the previous year; joining on year_t1 thus actually gives PC1 vals for the year before
+                  PC1_t1 = PC1)
+
+#PC1 in prev year
+PC1_t1 <- PC1_all %>% select(year_t1, PC1_t1)
+earliest_PC1_year <- PC1 %>% filter(year == min(PC1_t1)) %>%  pull()
+
 
 ## Filter `siteData` to include only sites with a specific edge condition (e.g., gt2kmFakeEdge==1) 
 # and create new variables `edgeArea100` and `edgeArea2000` based on specific edge and habitat values
@@ -60,7 +67,8 @@ analysisSites = siteData %>%
   filter(gt2kmFakeEdge == 1) %>% 
   mutate(edgeArea100 = (edgeRook_100_40 * (pi * 100^2)) / (habAmountDich_100 * (pi * 100^2) + 1)) %>% 
   mutate(edgeArea2000 = (edgeRook_2000_40 * (pi * 2000^2)) / (habAmountDich_2000 * (pi * 2000^2) + 1)) %>%  
-  left_join(PC1, by = "year") %>%
+  # join by PC1 in prev year
+  left_join(PC1_t1, by = c("year"= "year_t1"))%>%
   #only keep data for which we have data on PC1 value
   filter(year >= earliest_PC1_year)
 
@@ -152,7 +160,7 @@ surveyCovs = list(
 # Compute correlation matrix for standardized variables in `analysisSites`
 cor_matrix <- analysisSites %>% 
   select(scaleCanopy100, scaleConDens100, scaleEdgeDens100, scaleCoastDist, scaleHabAmount100,
-         scaleHabAmount2000, scaleEdgeDens2000, scaleEdgeArea100, scaleEdgeArea2000, PC1) %>% 
+         scaleHabAmount2000, scaleEdgeDens2000, scaleEdgeArea100, scaleEdgeArea2000, PC1_t1) %>% 
   cor()
 
 # Create an `unmarkedFrameOccu` object `analysisData` for occupancy modeling
