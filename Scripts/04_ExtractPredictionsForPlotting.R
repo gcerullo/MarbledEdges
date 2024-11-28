@@ -30,8 +30,11 @@ minPC1 <- min(siteCovs(analysisData)$PC1_t1)
 maxPC1 <- max(siteCovs(analysisData)$PC1_t1)
 
 pc1_levels <- c(minPC1,
+               # -1, pattern holds if we consider different cut-off for bad years (rather than just 'worst' year)
                # 0,
+               # 0.8)  pattern holds if we consider different cut-off for good years (rather than just 'best' year)
                 maxPC1)  # Example levels bad, (medium), and good ocean year conditions
+
 predict_data <- expand.grid(
   scaleEdgeDens2000 = edge_values,
   PC1_t1 = pc1_levels
