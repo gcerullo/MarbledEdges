@@ -58,8 +58,9 @@ PC1_all <- read.csv("Outputs/PC1_scaled_inverted.csv") %>%
 
 #PC1 in prev year
 PC1_t1 <- PC1_all %>% select(year_t1, PC1_t1)
-earliest_PC1_year <- PC1 %>% filter(year == min(PC1_t1)) %>%  pull()
-
+earliest_PC1_year <- PC1_t1 %>%
+  filter(year_t1 == min(year_t1)) %>% 
+  pull(year_t1)
 
 ## Filter `siteData` to include only sites with a specific edge condition (e.g., gt2kmFakeEdge==1) 
 # and create new variables `edgeArea100` and `edgeArea2000` based on specific edge and habitat values

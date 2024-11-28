@@ -4,10 +4,9 @@ library(unmarked)
 library(terra)
 library(ggcorrplot)
 
-
+source("scripts/02_OrganiseMurreletData.R")
 # Read in unmarked object
 analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
-
 # Read in interaction model
 model <- readRDS("Models/pc1_interaction_model.rds")
 
