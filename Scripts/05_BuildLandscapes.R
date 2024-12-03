@@ -297,21 +297,21 @@ nb_rows <- 3334 # Number of rows
 nb_cols <- 3333 # Number of columns
 
 ##TEST
-
 cls_a <- flsgen_create_class_targets(
   "Plantation",
   NP = c(1, 100),  #number of patches
-  AREA = c(100, 100), #patch area min cells, max cells 
-  CA = c(1, 4000), #total class area min and max 
-  PLAND = c(77*0.6, 77*0.6)
+  AREA = c(1, 1000000), #patch area min cells, max cells 
+  CA = c(1, 40000), #total class area min and max 
+  PLAND = c(77.1,77.1)
  # MESH = c(225, 225) #effective mesh size
 )
+
 cls_b <- flsgen_create_class_targets(
   "Forest",
   NP = c(1, 100),
-  AREA = c(1, 100),
-  PLAND = c(26.9*0.6, 26.9*0.6) #proportion of landscapes
+  AREA = c(1000, 10000),
 )
+
 
 200*200
 ls_targets <- flsgen_create_landscape_targets(
@@ -320,50 +320,57 @@ ls_targets <- flsgen_create_landscape_targets(
   classes = list(cls_a, cls_b)
 )
 
-structure <- flsgen_structure(ls_targets)
-landscape <- flsgen_generate(structure_str = structure)
+structure <- flsgen_structure(ls_targets) 
+landscape <- flsgen_generate(structure_str = structure) %>%
+  #replace all -1s with 0s so that we only have two classes (third class is needed to optimse speedy creation of landscapes)
+  ifel(. == -1, 0, .)
+
+plot(landscape)
+#
 plot(landscape)
 
+# --- Define class targets ---
+cls_plantation <- flsgen_create_class_targets("plantation",
+                                              NP = c(5, 5000),
+                                              AREA = c(1, 5000)
+                                              )
 
-cls_1 <- flsgen_create_class_targets("forest",
-                                     NP=c(1, 10),
-                                     AREA=c(10000, 10000))
-cls_2 <- flsgen_create_class_targets("plantation",
-                                     AREA=c(1000,10000), 
-                                     NP = c(1, 5))
+cls_forest <- flsgen_create_class_targets("forest",
+                                          NP = c(1,1000),
+                                          AREA = c(1, 5000)
+                                          )  
 
-#instead create a series of landscapes where we modify forest patch-size
-ls_targets <- flsgen_create_landscape_targets(200, 200, list(cls_1, cls_2))
+cls_agriculture <- flsgen_create_class_targets("agriculture", NP = c(10, 20), AREA = c(50, 200))
 
-target_series <- flsgen_create_target_series(ls_targets,
-                                             class_name="forest",
-                                             target_key="NP", sequence=seq(1, 10, by=1))
+# --- Create base landscape targets ---
+ls_targets <- flsgen_create_landscape_targets(200, 200, list(cls_plantation, cls_forest, cls_agriculture))
 
+# ---  Create a series of targets with varying MESH for forest ---
+mesh_sequence <- seq(5000, 1000, length.out = 10)  
+target_series <- flsgen_create_target_series(ls_targets, class_name = "forest", target_key = "MESH", sequence = mesh_sequence)
 
-# --- Generate a terrain raster  ---
-terrain <- flsgen_terrain(width = 200, height = 200, roughness = 0.5)
-plot(terrain)
+# --- Generate an optional terrain raster ---
+terrain <- flsgen_terrain(width = 200, height = 200, roughness = 0.5) 
+
 # --- Loop through the target series ---
-for (i in 1:length(target_series)) { 
+for (i in 1:length(target_series)) {
   
-  # Extract current targets
-  targets <- target_series[[i]] 
+  # --- Extract current targets ---
+  targets <- target_series[[i]]
   
-  # Generate landscape structure 
+  # --- Generate landscape structure ---
   structure <- flsgen_structure(targets_str = targets)
   
-  # Generate landscape raster 
+  # --- Generate landscape raster ---
   landscape_raster <- flsgen_generate(
     structure_str = structure,
-    terrain_file = terrain,  # Use the generated terrain
-    min_distance = 2, 
-    terrain_dependency = 0.8  # Example value, adjust as needed
+    terrain_file = terrain,
+    min_distance = 2,
+    terrain_dependency = 0.8
   )
   
-  # Plot the raster
+  # --- Plot the raster ---
   plot(landscape_raster)
-  title(main = paste("Forest NP:", targets$classes[[1]]$NP)) 
+  title(main = paste("Forest MESH:", targets$classes[[1]]$MESH)) 
   
 }
-
-#test commit murrelet
