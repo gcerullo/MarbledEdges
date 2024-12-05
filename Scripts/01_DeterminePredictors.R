@@ -42,6 +42,11 @@ PC1 <- ocean_cond %>% filter( Ecosystem.Indicators == "Principal Component score
   mutate(Value_scaled = scale(Value_inverted))     # Standardize values; Centers the data to a mean of 0 and scales it to a standard deviation of 1.
   
 
+PC1_quantiles <-  PC1 %>%
+  summarise(
+    q10 = quantile(`Value_scaled`, 0.1),
+    q90 = quantile(`Value_scaled`, 0.9)
+  )
 
 #visualise data #### 
 PC1 %>%  
