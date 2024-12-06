@@ -8,10 +8,16 @@ library(tidyverse)
 #ocean conditions 
 #Raw data on the ocean conditions based on 16 PCAd variables; downloaded from: 
 #https://www.fisheries.noaa.gov/west-coast/science-data/ocean-conditions-indicators-trends
-
 ocean_cond <- read.csv("Inputs/2023-Stoplight-RAWDATA.csv") %>%  
   #remove additional data not used in PCA construction
   slice(1:21)
+
+
+#--------------------------------------------------------------------
+#OCEAN CODITIONS 
+#--------------------------------------------------------------------
+
+
 
 
 #forest_age information 
@@ -65,5 +71,10 @@ PC1 %>%
     axis.title = element_text(size = 14)
   )
 
+#Oregon nest and murrelet data
+
+
+##########################################################################
 #save outputs #### 
+
 write.csv(PC1, "Outputs/PC1_scaled_inverted.csv")

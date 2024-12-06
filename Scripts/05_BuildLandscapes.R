@@ -308,7 +308,7 @@ cls_a <- flsgen_create_class_targets(
 
 cls_b <- flsgen_create_class_targets(
   "Forest",
-  NP = c(1, 100),
+  NP = c(1, 1000),
   AREA = c(1000, 10000),
 )
 
@@ -374,3 +374,41 @@ for (i in 1:length(target_series)) {
   title(main = paste("Forest MESH:", targets$classes[[1]]$MESH)) 
   
 }
+
+
+#----------------------------------------------------------------------
+#test new raster creation 
+#_______________________________________________________
+
+#Step 1: Create fake rasters
+r1 <- rast(nrows = 100, ncols = 100, vals = runif(10000, -2, 2))  # PC1_t1
+r2 <- rast(nrows = 100, ncols = 100, vals = runif(10000, 0, 10))  # scaleCoastDist
+r3 <- rast(nrows = 100, ncols = 100, vals = runif(10000, 0, 10))  # scaleHabAmount100
+r4 <- rast(nrows = 100, ncols = 100, vals = runif(10000, 0, 5))   # scaleEdgeDens100
+r5 <- rast(nrows = 100, ncols = 100, vals = runif(10000, 0, 20))  # scaleHabAmount2000
+r6 <- rast(nrows = 100, ncols = 100, vals = runif(10000, 0, 5))   # scaleEdgeDens2000
+
+# Combine into a SpatRaster
+predictors <- c(r1, r2, r3, r4, r5, r6)
+names(predictors) <- c("PC1_t1", "scaleCoastDist", "scaleHabAmount100", 
+                       "scaleEdgeDens100", "scaleHabAmount2000", "scaleEdgeDens2000")
+
+plot(predictors)
+# Step 2: Define prediction function
+predict_occupancy <- function(cell_values, model) {
+  # Prepare data frame from raster cell values
+  new_data <- as.data.frame(t(cell_values))
+  colnames(new_data) <- names(predictors)
+  
+  # Predict using the unmarked model
+  prediction <- predict(model, newdata = new_data, type = "state")
+  
+  # Return the predicted occupancy value
+  return(prediction$Predicted)
+}
+
+# Step 3: Apply the prediction function over rasters
+predicted_raster <- app(predictors, function(x) predict_occupancy(x, model))
+
+# Step 4: Plot the results
+plot(predicted_raster, main = "Predicted Occupancy")
