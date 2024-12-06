@@ -21,7 +21,7 @@ site_by_tag <- nest_oregon %>% select(SiteName, UtmE, UtmN, BandID_TaggedBird1) 
 nest_params <- nest_params %>% left_join(site_by_tag) 
 
 #add previous ocean condition 
-nest_params <- nest_params %>% left_join(PC1_t1, by = c("Year"= "year_t1")) %>% 
+nest_params <- nest_params %>% left_join(PC1_all, by = c("Year"= "year")) %>% #!!!!!! join by year_t1 for prev year and by year to et actual year PC1
   as.data.frame()
 
 #take the nests where we know the fates 
@@ -31,21 +31,20 @@ nests37 <- nest_params %>% filter(!is.na(Fate))
 
 nests37 %>% group_by(Year) %>% count()
 
-#quick model 
+#quick SURVIVAL models
+PC1_all
 model1 <- glmer(survival ~ PC1_t1 + (1 | SiteName), data = nests37, family = "binomial")
 summary(model1)
 glm(survival ~ scale(edgeAmount5km), data = nests37, family = "binomial")
+glm(survival ~ scale(edgeAmount5km) + PC1, data = nests37, family = "binomial")
+glm(survival ~ scale(edgeAmount5km) * PC1_t1, data = nests37, family = "binomial")
+
+
+#quick OCCUPANCY models 
+model1 <- glm(occupancy ~ scale(edgeAmount5km), data = nest_params, family = "binomial")
+summary(model1)
 glm(survival ~ scale(edgeAmount5km) + PC1_t1, data = nests37, family = "binomial")
 glm(survival ~ scale(edgeAmount5km) * PC1_t1, data = nests37, family = "binomial")
 
-# site_hab_features<- nest_params %>% select(Year, SiteName, 
-#                                habAmount500m, habAmount1km,
-#                                edgeAmount500m,edgeAmount1km)
-# all_captures %>% left_join(site_hab_features, by = "")
-
-unique(nest_oregon$BandID_TaggedBird1)
-unique(all_captures$`USGS Band #`)
-names()
-names(nest_params)
-
+#quick CONDITON Models 
 
