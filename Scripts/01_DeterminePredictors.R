@@ -8,10 +8,16 @@ library(tidyverse)
 #ocean conditions 
 #Raw data on the ocean conditions based on 16 PCAd variables; downloaded from: 
 #https://www.fisheries.noaa.gov/west-coast/science-data/ocean-conditions-indicators-trends
-
 ocean_cond <- read.csv("Inputs/2023-Stoplight-RAWDATA.csv") %>%  
   #remove additional data not used in PCA construction
   slice(1:21)
+
+
+#--------------------------------------------------------------------
+#OCEAN CODITIONS 
+#--------------------------------------------------------------------
+
+
 
 
 #forest_age information 
@@ -42,6 +48,11 @@ PC1 <- ocean_cond %>% filter( Ecosystem.Indicators == "Principal Component score
   mutate(Value_scaled = scale(Value_inverted))     # Standardize values; Centers the data to a mean of 0 and scales it to a standard deviation of 1.
   
 
+PC1_quantiles <-  PC1 %>%
+  summarise(
+    q10 = quantile(`Value_scaled`, 0.1),
+    q90 = quantile(`Value_scaled`, 0.9)
+  )
 
 #visualise data #### 
 PC1 %>%  
@@ -60,5 +71,10 @@ PC1 %>%
     axis.title = element_text(size = 14)
   )
 
+#Oregon nest and murrelet data
+
+
+##########################################################################
 #save outputs #### 
+
 write.csv(PC1, "Outputs/PC1_scaled_inverted.csv")

@@ -4,6 +4,7 @@ library(unmarked)
 library(terra)
 library(ggcorrplot)
 
+source("scripts/01_DeterminePredictors.R")
 source("scripts/02_OrganiseMurreletData.R")
 # Read in unmarked object
 analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
@@ -29,11 +30,16 @@ edge_values <- seq(
 minPC1 <- min(siteCovs(analysisData)$PC1_t1)
 maxPC1 <- max(siteCovs(analysisData)$PC1_t1)
 
-pc1_levels <- c(minPC1,
+q10 <- PC1_quantiles %>% pull(q10)
+q90 <- PC1_quantiles %>% pull(q90)
+
+pc1_levels <- c(q10, q90)
+                #takes 10th percentile
+               #minPC1,#takes worst year 
                # -1, pattern holds if we consider different cut-off for bad years (rather than just 'worst' year)
                # 0,
                # 0.8)  pattern holds if we consider different cut-off for good years (rather than just 'best' year)
-                maxPC1)  # Example levels bad, (medium), and good ocean year conditions
+               #  maxPC1)  #takes best year 
 
 predict_data <- expand.grid(
   scaleEdgeDens2000 = edge_values,
