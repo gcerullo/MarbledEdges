@@ -136,6 +136,8 @@ pc1_interaction_model <- occu(
 )
 print(Sys.time() - start_time)
 
+#compare model outputs- is PC1 edge interaction better than habitat amount pc1 interaction
+
 # Save final results
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
 saveRDS(pc1_interaction_model,"Models/pc1_interaction_model.rds")
