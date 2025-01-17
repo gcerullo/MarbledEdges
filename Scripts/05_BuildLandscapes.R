@@ -302,261 +302,68 @@ sparing
 #ext(r) <- c(0, ncols, 0, nrows)  # Define the extent
 
 # Define the number of plantation cells (70% of total area)
-n_plantation_cells <- round(0.7 * total_area_km2)
+nrows = 1000
+ncols = 1000
+total_area <-nrows*ncols #landscaoe is 1Mha and made up of 100m2 pixels 
 
-
-# Create an empty list to store the rasters
-raster_list <- list()
-
-# Loop through different `num` of patches values from 1 to 1000, in steps of 100
-for (i in seq(1, 500, by = 50)) {
+generate_landscape <- function(prop_plantation_cells, total_area, num_steps = 700, step_size = 50) {
+  # Create an empty list to store the rasters
+  raster_list <- list()
   
-  # Set up the landscape resolution and dimensions (same as before)
-  nrows <- 1000
-  ncols <- 1000
-  m <- matrix(0,  nrows, ncols) #1MHA 
-  total_area_km2 <- nrows*ncols
-  r <- rast(m)
+  # Loop through different `num` of patches values from 1 to num_steps, in steps of step_size
+  for (i in seq(1, num_steps, by = step_size)) {
+    # Set up the landscape resolution and dimensions (same as before)
+    m <- matrix(0, nrows, ncols)  # 1MHA
+    r <- rast(m)
+    
+    # Number of patches
+    num <- i 
+    
+    # Calculate the size for each patch
+    size <- prop_plantation_cells / i  # Each patch should take an equal share of the plantation area
+    
+    # Create the landscape with the specified number of patches and size
+    rr <- makeClass(r, num, size)  # Generate the class (patches)
+    
+    # Save the generated landscape to the list
+    raster_list[[paste("patches_", num, sep = "")]] <- rr  # Using dynamic names for the list
+    
+    # Plot the generated landscape
+    plot(rr)
+    title(paste("Landscape with", num, "patches"))
+  }
   
-  # Number of patches
-  num <- i 
+  # View all of the rasters in a grid
+  par(mfrow = c(3, 4))  # Set the plotting area to 3 rows x 4 columns (adjust as needed)
   
-  # Calculate the size for each patch
-  size <- n_plantation_cells / i  # Each patch should take an equal share of the plantation area
+  for (i in seq_along(raster_list)) {
+    plot(raster_list[[i]])  # Plot the current raster in the list
+    title(names(raster_list)[i])  # Add the title with the name of the raster
+  }
   
-  # Create the landscape with the specified number of patches and size
-  rr <- makeClass(r, num, size)  # Generate the class (patches)
-  
-  # Save the generated landscape to the list
-  raster_list[[paste("patches_", num, sep = "")]] <- rr  # Using dynamic names for the list
-  
-  # Plot the generated landscape
-  plot(rr)
-  title(paste("Landscape with", num, "patches"))
+  return(raster_list)
 }
 
-# View all of the rasters
-par(mfrow = c(3, 4))  # Set the plotting area to 3 rows x 4 columns (adjust as needed)
+# Example usage:
+# Define the proportion of plantation area
+prop_plantation_cells1 <- 0.319 * total_area
+prop_plantation_cells2 <- 0.771 * total_area
 
-for (i in seq_along(raster_list)) {
-  plot(raster_list[[i]])  # Plot the current raster in the list
-  #title(names(raster_list)[i])  # Add the title with the name of the raster
+# Call the function with different plantation areas
+x <- generate_landscape(prop_plantation_cells1, total_area)
+y<- generate_landscape(prop_plantation_cells2, total_area)
+
+for (z in x) {
+  plot(z)
 }
 
+for (z in y) {
+  plot(z)
+}
 
-#for a single landscape
+m <- as.matrix(x[[1]], wide = TRUE)
+# m <- as.matrix(x[[1]])
+z <- as.data.frame(m)
 
-
-m <- matrix(0,  1000, 1000) #1MHA
-r <- rast(m)
-#ext(r) <- c(0, 10, 0, 10)
-
-#rr <- makePatch(r, size=500, rast=TRUE)
-plot(rr)
-
-num <- 1000
-size <- (1000000*0.7)/num
-num*size
-rr <- makeClass(r, num, size)
-plot(rr)
-
-?makeClass()
-
-
-
-
-# 
-# # Define landscape dimensions (approximately 1Mha with 30m pixels)
-# nb_rows <- 3334 # Number of rows
-# nb_cols <- 3333 # Number of columns
-# 
-# ##TEST
-# cls_a <- flsgen_create_class_targets(
-#   "Plantation",
-#   NP = c(1, 10),  #number of patches
-#   AREA = c(1, 1000000), #patch area min cells, max cells 
-#   CA = c(1, 40000), #total class area min and max 
-#   PLAND = c(77.1,77.1)
-#  # MESH = c(225, 225) #effective mesh size
-# )
-# 
-# cls_b <- flsgen_create_class_targets(
-#   "Forest",
-#   NP = c(1, 1000),
-#   AREA = c(1, 100000),
-# )
-# 
-# 
-# 200*200
-# ls_targets <- flsgen_create_landscape_targets(
-#   nb_rows = 200, 
-#   nb_cols = 200,
-#   classes = list(cls_a, cls_b)
-# )
-# 
-# structure <- flsgen_structure(ls_targets) 
-# landscape <- flsgen_generate(structure_str = structure) %>%
-#   #replace all -1s with 0s so that we only have two classes (third class is needed to optimse speedy creation of landscapes)
-#   ifel(. == -1, 0, .)
-# 
-# plot(landscape)
-# #
-# plot(landscape)
-# #--------------------------------------------------------------
-# library(terra)
-# library(tidyverse)
-# 
-# # Parameters
-# n_landscapes <- 100
-# landscape_area <- 10000 * 100 # 10,000 ha with 30x30m pixels
-# pixel_size <- 30 # 30m x 30m resolution
-# plantation_pct <- 0.7
-# forest_pct <- 0.3
-# 
-# # Function to create a landscape with fixed coverage and increasing fragmentation
-# generate_landscape <- function(fragmentation_degree) {
-#   # Create an empty raster with specified resolution
-#   n_pixels <- landscape_area / (pixel_size^2)
-#   r <- rast(ncol = sqrt(n_pixels), nrow = sqrt(n_pixels), res = pixel_size)
-#   
-#   # Total number of plantation and forest pixels
-#   n_plantation <- round(n_pixels * plantation_pct)
-#   n_forest <- round(n_pixels * forest_pct)
-#   
-#   # Assign plantation (0) and forest (1) to the raster
-#   r[] <- c(rep(0, n_plantation), rep(1, n_forest))
-#   
-#   # Shuffle the values to randomize their locations
-#   r[] <- sample(r[], length(r[]), replace = FALSE)
-#   
-#   # Fragmentation logic: Creating fragmented forest blocks
-#   forest_cells <- which(r[] == 1)  # Find forest cells
-#   n_forest_cells <- length(forest_cells)
-#   
-#   # Define number of forest patches based on fragmentation degree
-#   n_patches <- max(1, round(n_forest_cells * (1 - fragmentation_degree)))
-#   
-#   # Generate patch labels for the forest cells
-#   patch_labels <- sample(1:n_patches, n_forest_cells, replace = TRUE)
-#   
-#   # Assign the patch labels to the forest cells to simulate fragmentation
-#   r[forest_cells] <- patch_labels
-#   
-#   return(r)
-# }
-# 
-# # Generate landscapes with increasing fragmentation
-# landscapes <- map(1:n_landscapes, ~generate_landscape(. / n_landscapes))
-# 
-# # Inspect one landscape
-# plot(landscapes[[10]])
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# # 
-# # # Define landscape dimensions (approximately 1Mha with 30m pixels)
-# # nb_rows <- 3334 # Number of rows
-# # nb_cols <- 3333 # Number of columns
-# # 
-# # ##TEST
-# # cls_a <- flsgen_create_class_targets(
-# #   "Plantation",
-# #   NP = c(1, 10),  #number of patches
-# #   AREA = c(1, 1000000), #patch area min cells, max cells 
-# #   CA = c(1, 40000), #total class area min and max 
-# #   PLAND = c(77.1,77.1)
-# #  # MESH = c(225, 225) #effective mesh size
-# # )
-# # 
-# # cls_b <- flsgen_create_class_targets(
-# #   "Forest",
-# #   NP = c(1, 1000),
-# #   AREA = c(1, 100000),
-# # )
-# # 
-# # 
-# # 200*200
-# # ls_targets <- flsgen_create_landscape_targets(
-# #   nb_rows = 200, 
-# #   nb_cols = 200,
-# #   classes = list(cls_a, cls_b)
-# # )
-# # 
-# # structure <- flsgen_structure(ls_targets) 
-# # landscape <- flsgen_generate(structure_str = structure) %>%
-# #   #replace all -1s with 0s so that we only have two classes (third class is needed to optimse speedy creation of landscapes)
-# #   ifel(. == -1, 0, .)
-# # 
-# # plot(landscape)
-# # #
-# # plot(landscape)
-# # #--------------------------------------------------------------
-# # library(terra)
-# # library(tidyverse)
-# # 
-# # # Parameters
-# # n_landscapes <- 100
-# # landscape_area <- 10000 * 100 # 10,000 ha with 30x30m pixels
-# # pixel_size <- 30 # 30m x 30m resolution
-# # plantation_pct <- 0.7
-# # forest_pct <- 0.3
-# # 
-# # # Function to create a landscape with fixed coverage and increasing fragmentation
-# # generate_landscape <- function(fragmentation_degree) {
-# #   # Create an empty raster with specified resolution
-# #   n_pixels <- landscape_area / (pixel_size^2)
-# #   r <- rast(ncol = sqrt(n_pixels), nrow = sqrt(n_pixels), res = pixel_size)
-# #   
-# #   # Total number of plantation and forest pixels
-# #   n_plantation <- round(n_pixels * plantation_pct)
-# #   n_forest <- round(n_pixels * forest_pct)
-# #   
-# #   # Assign plantation (0) and forest (1) to the raster
-# #   r[] <- c(rep(0, n_plantation), rep(1, n_forest))
-# #   
-# #   # Shuffle the values to randomize their locations
-# #   r[] <- sample(r[], length(r[]), replace = FALSE)
-# #   
-# #   # Fragmentation logic: Creating fragmented forest blocks
-# #   forest_cells <- which(r[] == 1)  # Find forest cells
-# #   n_forest_cells <- length(forest_cells)
-# #   
-# #   # Define number of forest patches based on fragmentation degree
-# #   n_patches <- max(1, round(n_forest_cells * (1 - fragmentation_degree)))
-# #   
-# #   # Generate patch labels for the forest cells
-# #   patch_labels <- sample(1:n_patches, n_forest_cells, replace = TRUE)
-# #   
-# #   # Assign the patch labels to the forest cells to simulate fragmentation
-# #   r[forest_cells] <- patch_labels
-# #   
-# #   return(r)
-# # }
-# # 
-# # # Generate landscapes with increasing fragmentation
-# # landscapes <- map(1:n_landscapes, ~generate_landscape(. / n_landscapes))
-# # 
-# # # Inspect one landscape
-# # plot(landscapes[[10]])
+# export rasters for given production targets
+saveRDS(x, "Rasters/LandscapeRasters_0319_plantationarea.rds")
