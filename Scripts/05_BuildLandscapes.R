@@ -302,8 +302,8 @@ sparing
 #ext(r) <- c(0, ncols, 0, nrows)  # Define the extent
 
 # Define the number of plantation cells (70% of total area)
-nrows = 1000
-ncols = 1000
+nrows = 100
+ncols = 100
 total_area <-nrows*ncols #landscaoe is 1Mha and made up of 100m2 pixels 
 
 generate_landscape <- function(prop_plantation_cells, total_area, num_steps = 700, step_size = 50) {
@@ -365,5 +365,19 @@ m <- as.matrix(x[[1]], wide = TRUE)
 # m <- as.matrix(x[[1]])
 z <- as.data.frame(m)
 
-# export rasters for given production targets
-saveRDS(x, "Rasters/LandscapeRasters_0319_plantationarea.rds")
+#Output all rasters tifs in a folder with the production target name
+
+# Create the 'production_0.55' folder if it doesn't exist
+output_folder <- "Rasters/production_0.55"
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+
+# Loop through the list `x` and save each raster as a .tif file
+lapply(names(x), function(name) {
+  # Create a filename for each raster (e.g., "patches_1.tif")
+  output_file <- file.path(output_folder, paste0(name, ".tif"))
+  
+  # Save the raster as a TIFF file
+  writeRaster(x[[name]], filename = output_file, overwrite = TRUE)
+})
