@@ -29,18 +29,28 @@ plot(test)
 
 cell_centers <- xyFromCell(test, 1:ncell(test))
 points <- vect(cell_centers, type="points")
-plot(points, add=TRUE, col="red",  cex=0.00001)
+plot(points, add=TRUE, col="red",  cex=0.0000000000000000001)
 
-
+#100*100 = 10,000 squares
+#so each square is 1km2 to make 1Mha
 #EXTRACTION TO BUFFERS ####
 #vector based extraction of buffer data
 
+#1Mha landscape; so each square is 1ha
 # Initialize lists to store results
 results_habAmount <- list()
 
- 
-buffer_distance <- 20
+buffer_distances <- c(1,20)
+
+#TO CORRECT!!!!!!!!!!!!!!!
+#The 1million cell raster is currently at 1m2 resolution; actually each cell should correspond to a ha!!!
+#Come back and make sure tihs is correct before extracting the buffer!!!!!!!! 
+
+
+
+buffer_distance <- 100
 raster <- test
+crs(raster) <- "+proj=utm +zone=11 +datum=WGS84"
 # Function to process extraction
 process_extraction <- function(raster, buffer_distances) {
   results <- list()
@@ -79,7 +89,7 @@ process_extraction <- function(raster, buffer_distances) {
 
 # Process results
 results_test <- process_extraction(test, buffer_distances)
-
+results_test[[100]]
 
 #Capture cells within each  ####
 

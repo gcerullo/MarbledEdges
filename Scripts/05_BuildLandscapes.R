@@ -302,8 +302,8 @@ sparing
 #ext(r) <- c(0, ncols, 0, nrows)  # Define the extent
 
 # Define the number of plantation cells (70% of total area)
-nrows = 100
-ncols = 100
+nrows = 1000
+ncols = 1000
 total_area <-nrows*ncols #landscaoe is 1Mha and made up of 100m2 pixels 
 
 generate_landscape <- function(prop_plantation_cells, total_area, num_steps = 700, step_size = 50) {
