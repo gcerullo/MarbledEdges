@@ -1,56 +1,56 @@
+# Load necessary libraries
 library(terra)
 library(sf)
 library(exactextractr)
-library(furrr)
 library(data.table)
+library(landscapemetrics)
+library(future.apply)  
+library(unmarked)
+library(tidyverse)
 library(purrr)
 
+# Define input/output folders
+input_folder <- "Rasters/production_0.55"
+output_folder <- "Results/"
+dir.create(output_folder, showWarnings = FALSE, recursive = TRUE)
 
-library(terra)
-library(sf)
-library(data.table)
-library(purrr)
-library(dplyr)
-library(exactextractr)
+# List all raster files
+tif_files <- list.files(input_folder, pattern = "\\.tif$", full.names = TRUE)
 
-raster <- test  # Assign raster once outside the function
+# Load multiple rasters
+landscape <- rast(tif_files)
 
-points <- points[1:10, ] #test function with few points
+# Define buffer distances
+buffer_distances <- c(1, 20)
 
-# Compute raster extent once (avoiding repeated computation)
-raster_ext <- st_as_sf(st_as_sfc(st_bbox(raster)))
+# Extract points from raster
+get_points <- function(raster) {
+  cell_centers <- xyFromCell(raster, 1:ncell(raster))
+  points <- vect(cell_centers, type = "points")
+  points$id <- paste0("p", 1:nrow(points))
+  return(points)
+}
 
-process_extraction <- function(raster, buffer_distances) {
-  results <- vector("list", length(buffer_distances))  # Preallocate results list
-  names(results) <- paste0("buffer_", buffer_distances)  # Assign buffer names
-  
-  # Convert points once before looping
-  points_sf <- st_as_sf(points)
+# Function to process habitat amount
+process_habitat_amount <- function(raster, points, buffer_distances) {
+  results <- list()
   
   for (buffer_distance in buffer_distances) {
-    # Create buffers around each point and ensure valid geometries
-    buffers_sf <- st_buffer(points_sf, dist = buffer_distance)
-    buffers_sf <- st_make_valid(buffers_sf)  # Fix invalid geometries
-    
-    # Clip buffers to raster extent
+    buffers <- buffer(points, width = buffer_distance)
+    buffers_sf <- st_as_sf(buffers)
+    raster_ext <- st_as_sf(st_as_sfc(st_bbox(raster)))
     buffers_clipped <- st_intersection(buffers_sf, raster_ext)
     
-    # Perform extraction (fail-safe)
-    extraction <- tryCatch(
-      exact_extract(raster, buffers_clipped, progress = TRUE),
-      error = function(e) {
-        message("Error in exact_extract(): ", e)
-        return(NULL)
-      }
-    )
+    extraction <- exact_extract(raster, buffers_clipped, progress = TRUE)
     
-    if (is.null(extraction)) next  # Skip if extraction failed
-    
-    # Attach IDs directly
-    extraction_with_id <- Map(function(df, id) {
-      df$id <- id
-      df
-    }, extraction, buffers_clipped$id)
+    extraction_with_id <- lapply(1:length(extraction), function(i) {
+      extraction_df <- extraction[[i]]
+      extraction_df$id <- buffers_clipped$id[i]
+      setDT(extraction_df)[, .(
+        sum_class_cells = sum(value),
+        total_class_coverage_fraction = sum(coverage_fraction)
+      ), by = .(id, value)]
+    })
     
     results[[paste0("buffer_", buffer_distance)]] <- extraction_with_id
   }
@@ -58,18 +58,39 @@ process_extraction <- function(raster, buffer_distances) {
   return(results)
 }
 
-# Process results
-process_results <- function(results_test) {
-  extracted_data <- flatten(results_test)  # Flatten nested list
-  
-  # Convert to data.table efficiently
-  final_dt <- rbindlist(lapply(extracted_data, function(df) {
-    setDT(df)[, .(total_coverage = sum(value * coverage_fraction)), by = .(value, id)]
-  }), use.names = TRUE, fill = TRUE)
-  
-  return(final_dt)
+# Function to calculate edge density
+calculate_edge_density <- function(point, raster, buffer_size) {
+  buffer <- buffer(point, width = buffer_size)
+  masked_raster <- mask(raster, buffer)
+  edge_density <- lsm_l_ed(masked_raster, count_boundary = FALSE, directions = 4)
+  edge_density$buffer_size <- buffer_size
+  edge_density$point_id <- point$id
+  return(edge_density)
 }
 
-# Run processing
-results_test <- process_extraction(raster, buffer_distances)
-final_dt <- process_results(results_test)
+# Loop through all rasters
+for (i in 1:nlyr(landscape)) {
+  raster <- landscape[[i]]
+  raster_name <- names(landscape)[i]
+  
+  message("Processing raster: ", raster_name)
+  
+  points <- get_points(raster)
+  
+  # Process habitat amount
+  habAmount <- process_habitat_amount(raster, points, buffer_distances)
+  saveRDS(habAmount, file = paste0(output_folder, "habAmount_", raster_name, ".rds"))
+  
+  # Process edge density
+  edge_density_results <- list()
+  for (point in 1:nrow(points)) {
+    for (buffer_size in buffer_distances) {
+      edge_density_results[[paste0(point, "_", buffer_size)]] <- calculate_edge_density(points[point, ], raster, buffer_size)
+    }
+  }
+  
+  edge_density_df <- do.call(rbind, edge_density_results)
+  saveRDS(edge_density_df, file = paste0(output_folder, "edgeDensity_", raster_name, ".rds"))
+  
+  message("Completed raster: ", raster_name)
+}

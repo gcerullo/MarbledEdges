@@ -42,7 +42,7 @@ cell_centers <- xyFromCell(test, 1:ncell(test))
 points <- vect(cell_centers, type="points")
 
 #test points 
-#points <- points[500050:500150, ] #test function with few points
+ points <- points[500050:500150, ] #test function with few points
 plot(points, add=TRUE, col="red",  cex=0.0000000000000000001)
 plot(points, add=TRUE, col="red")
 
@@ -50,79 +50,119 @@ plot(points, add=TRUE, col="red")
 points$id <- paste0("p", 1:nrow(points))
 
 
+
 #1000*1000 = 1,000,000 
 #so each square is 1ha (100x100) to make 1Mha
 #EXTRACTION TO BUFFERS ####
 #vector based extraction of buffer data
 
+#--------------------------------------------------
+#Calculate habitat amount ####
+#--------------------------------------------------
+
 #1Mha landscape; so each square is 1ha
 # Initialize lists to store results
 buffer_distances <- c(1,20)
-
-raster <- test
-process_extraction <- function(raster, buffer_distances) {
-  results <- list()
+process_extraction <- function(raster, buffer_distances, points) {
+  habAmount <- list()
+  
+  # Ensure points have unique IDs
+  points$id <- paste0("p", 1:nrow(points))
   
   for (buffer_distance in buffer_distances) {
-    # Create buffers around each point
+    # Create buffers around each point and retain IDs
     buffers <- buffer(points, width = buffer_distance)
+    buffers$id <- points$id  # Retain point IDs in the buffer object
     
-    # Convert spatVector buffers to sf format
+    # Convert buffers to sf format
     buffers_sf <- st_as_sf(buffers)
     
     # Create an extent polygon from the raster
     raster_ext <- st_as_sf(st_as_sfc(st_bbox(raster)))
     
-    # Clip the buffers_sf to the raster extent
+    # Clip the buffers to the raster extent
     buffers_clipped <- st_intersection(buffers_sf, raster_ext)
     
-    # Perform extraction
-    extraction <- exact_extract(raster, buffers_clipped, progress = TRUE)
+    # Perform extraction - frac calculates the faction of each value; 0 or 1 in each value in the buffer 
+    extraction <- exact_extract(raster, buffers_clipped,'frac', progress = TRUE)
+    extraction$id <- buffers$id #add Id back in 
+
     
-    # Loop through each extraction and assign corresponding ID
-    extraction_with_id <- lapply(1:length(extraction), function(i) {
-      # Add the ID to each individual extraction dataframe
-      extraction_df <- extraction[[i]]
-      extraction_df$id <- buffers_clipped$id[i]  # Add the id for this buffer 
-     
-    #   # #apply the summary of buffer habitat coverage
-    #   extraction_df <- extraction_df %>%
-    #     #get proportional coverage of each intersecting cell of value 1 or 0 (forest/plantation)
-    #     group_by(id, value) %>%
-    #     summarise(
-    #       #how many cells of 0/1 does the buffer intersect?
-    #       sum_class_cells = sum(value),
-    #       #what's the sum of fractional coverage of cells (e.g. does the buffer cover all of the cell (=1), summed
-    #       total_class_coverage_fraction = sum(coverage_fraction),
-    #       .groups = "drop"  # Ensures grouping does not persist
-    #     )  
-    #    return(extraction_df)  # Return modified extraction dataframe with id
-    # })
-      
-      # **Use data.table for fast summarization**
-      setDT(extraction_df)[, .(
-        sum_class_cells = sum(value),
-        total_class_coverage_fraction = sum(coverage_fraction)
-      ), by = .(id, value)]
-    })
-    
-    # Store results in a list where each point keeps its own dataframe
-    results[[paste0("buffer_", buffer_distance)]] <- extraction_with_id
+    # Store results in the list
+    habAmount[[paste0("buffer_", buffer_distance)]] <- extraction
   }
   
+  return(habAmount)
+}
+####
+#####
+####
+process_extraction <- function(raster, buffer_distances, points) {
+  library(data.table)
+  library(sf)
+  library(exactextractr)
   
-  return(results)
+  habAmount <- list()
+  
+  # Ensure points have unique IDs
+  points$id <- paste0("p", seq_len(nrow(points)))
+  
+  for (buffer_distance in buffer_distances) {
+    # Create buffers around each point and retain IDs
+    buffers <- st_as_sf(buffer(points, width = buffer_distance))
+    buffers$id <- points$id  # Retain point IDs
+    
+    # Clip buffers to raster extent
+    raster_ext <- st_as_sf(st_as_sfc(st_bbox(raster)))
+    buffers_clipped <- st_intersection(buffers, raster_ext)
+    
+    # Perform extraction
+    extraction <- exact_extract(raster, buffers_clipped, 'frac',progress = TRUE)
+    
+    # # Summarize the extraction using lapply
+    # extraction_with_id <- rbindlist(lapply(seq_along(extraction), function(i) {
+    #   extraction_dt <- setDT(extraction[[i]])
+    #   extraction_dt[, id := buffers_clipped$id[i]]
+    #   extraction_dt[, .(
+    #     sum_class_cells = sum(value, na.rm = TRUE),
+    #     total_class_coverage_fraction = sum(coverage_fraction, na.rm = TRUE)
+    #   ), by = .(id, value)]
+    # }))
+    # 
+    # Store summarized results
+    habAmount[[paste0("buffer_", buffer_distance)]] <- extraction_with_id
+  }
+  
+  return(habAmount)
 }
 
 
-# Example Usage
-results_test <- process_extraction(raster = test, buffer_distances = c(1, 20))
 
+###
+####
+###
+
+# Usage
+start_time <- Sys.time()
+
+habAmount <- process_extraction(raster = test, buffer_distances = c(1, 20), points = points)
+
+end_time <- Sys.time()
+message("Habitat amount calculation completed in ", end_time - start_time, " seconds.")
+
+
+# Collapse the nested list into a long data frame
+habAmount_long <- imap_dfr(habAmount, ~ bind_rows(.x) %>% mutate(buffer_name = .y))
 #--------------------------------------------------
 #CALCULATE EDGE DENSITY ####
 #--------------------------------------------------
-library(terra)  # For raster and vector manipulation
-library(landscapemetrics)  # For landscape metrics (including edge density)
+
+#Description of edge density in landscapemetrics package:
+#The formula for Edge Density (ED) is:
+# (𝐸/𝐷) *10,000
+#where𝐸 = total edge length in the landscape (measured in meters)
+#𝐴 = total landscape area (measured in square meters)
+#The factor 10,000 is used to convert the result into meters per hectare (m/ha), as 1 hectare = 10,000 m².
 
 points
 raster
@@ -157,6 +197,8 @@ edge_density_results <- vector("list", total_results)
 # Initialize counter for results list
 result_index <- 1
 
+start_time <- Sys.time()
+
 # Loop through each point and buffer size to calculate edge density
 for (point in 1:num_points) {
   point_sf <- points[point, ]  # Extract individual point
@@ -176,117 +218,11 @@ for (point in 1:num_points) {
   }
 }
 
-# Optionally, you can print the final progress message when everything is done
-message("Edge density calculation completed for all points and buffer sizes.")
-
+end_time <- Sys.time()
+message("Edge density calculation completed in ", end_time - start_time, " seconds.")
 
 # Combine the results into a single data frame or tibble
 edge_density_df <- do.call(rbind, edge_density_results)
 
 # View the results
 print(edge_density_df)
-# 
-# #--------------------------------------------------
-# #CALCULATE EDGE DENSITY PARRALELISED 
-# #--------------------------------------------------
-# 
-# # Set up parallel processing
-# plan(multisession, workers = parallel::detectCores() - 1)  # Use all but one core
-# 
-# # Example buffer sizes (adjust based on your analysis)
-# buffer_sizes <- c(1, 20)  # Buffer sizes in meters
-# 
-# # Function to calculate edge density for a single point with a specific buffer size
-# calculate_edge_density <- function(point, raster, buffer_size) {
-#   # Step 1: Create buffer around the point
-#   buffer <- buffer(point, width = buffer_size)  # Create buffer around the point
-#   
-#   # Step 2: Mask the raster with the buffer
-#   masked_raster <- mask(raster, buffer)  # Mask raster by the buffer
-#   
-#   # Step 3: Calculate edge density within the masked raster
-#   edge_density <- lsm_l_ed(masked_raster, count_boundary = FALSE, directions = 4)  # DIRECTIONS = rook's edge density
-#   
-#   # Add buffer size and point information to the result
-#   edge_density$buffer_size <- buffer_size
-#   edge_density$point_id <- point$id
-#   
-#   return(edge_density)
-# }
-# 
-# # Preallocate a data.table for storing results (more efficient for large datasets)
-# edge_density_dt <- data.table(point_id = integer(0), buffer_size = integer(0), edge_density = numeric(0))
-# 
-# # Function to calculate edge density for all buffer sizes for a given point
-# calculate_for_point <- function(point, raster, buffer_sizes) {
-#   results <- list()
-#   for (buffer_size in buffer_sizes) {
-#     result <- calculate_edge_density(point, raster, buffer_size)
-#     # Add the result to the list
-#     results[[length(results) + 1]] <- list(
-#       point_id = point$id,
-#       buffer_size = buffer_size,
-#       edge_density = result$value  # Assuming 'value' holds the edge density metric
-#     )
-#   }
-#   return(results)
-# }
-# 
-# # Use future.apply to process points in parallel
-# result_list <- future_lapply(1:nrow(points), function(point_index) {
-#   point <- points[point_index, ]  # Extract individual point
-#   calculate_for_point(point, raster, buffer_sizes)
-# })
-# 
-# # Flatten the result list and convert it to a data.table
-# edge_density_dt <- rbindlist(unlist(result_list, recursive = TRUE), use.names = TRUE)
-# 
-# # Optionally, you can print the final progress message when everything is done
-# message("Edge density calculation completed for all points and buffer sizes.")
-# 
-# # Print first few rows of results
-# print(head(edge_density_dt))
-# 
-# #--------------------------------------------------
-# #VISUALISE WHAT'S HAPPENING IN THE CALCULATION of edge density 
-# #--------------------------------------------------
-# # Select one point from your points SpatVector and one buffer size
-# points
-# test
-# 
-# point <- points[40000, ]  # Just take the first point for simplicity
-# buffer_size <- 20 # Buffer size of 100 meters
-# 
-# # Step 1: Create the buffer around the point
-# buffer <- buffer(point, width = buffer_size)  # Create buffer using terra::buffer
-# #add 
-# 
-# # Step 2: Visualize the original point and the buffer
-# # Convert the buffer to an sf object for ggplot visualization
-# buffer_sf <- st_as_sf(buffer)
-# 
-# # Convert the point to an sf object for visualization
-# point_sf <- st_as_sf(point)
-# 
-# # Plot the point and buffer
-# ggplot() +
-#   geom_sf(data = buffer_sf, fill = "red", color = "blue", alpha = 0.5) +  # Buffer area
-#   geom_sf(data = point_sf, color = "red", size = 3) +  # Point location
-#   theme_minimal() +
-#   labs(title = "Point and Buffer Visualization", subtitle = paste("Buffer size:", buffer_size, "meters")) +
-#   coord_sf()
-# 
-# # Step 3: Mask the raster by the buffer
-# masked_raster <- mask(raster, buffer)
-# 
-# # Plot the original raster and the masked area
-# plot(raster, main = "Original Raster", col = terrain.colors(10))  # Plot original raster
-# plot(masked_raster, main = "Masked Raster (with Buffer)", col = terrain.colors(10))  # Plot masked raster
-# 
-# # Step 4: Calculate edge density within the masked area
-# edge_density <- lsm_l_ed(masked_raster, count_boundary = FALSE, directions = 4)
-# 
-# # Print edge density result
-# print(edge_density)
-# 
-# 
