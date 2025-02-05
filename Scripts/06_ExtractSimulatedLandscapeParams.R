@@ -42,7 +42,7 @@ cell_centers <- xyFromCell(test, 1:ncell(test))
 points <- vect(cell_centers, type="points")
 
 #test points 
-points <- points[500050:500950, ] #test function with few points
+#points <- points[500050:500100, ] #test function with few points
 plot(points, add=TRUE, col="red",  cex=0.0000000000000000001)
 plot(points, add=TRUE, col="red")
 
@@ -55,7 +55,7 @@ points$id <- paste0("p", 1:nrow(points))
 #vector based extraction of buffer data
 
 #--------------------------------------------------
-#Calculate habitat amount ####
+#Calculate habitat amount functions ####
 #--------------------------------------------------
 # Function to process a single raster and calculate habitat amount
 process_extraction <- function(raster, buffer_distances, points) {
@@ -200,3 +200,49 @@ edge_density_df <- do.call(rbind, edge_density_results)
 
 # View the results
 print(edge_density_df)
+
+#============================================================================================
+# Initialize an empty list to store results for each raster
+edge_density_results_list <- list()
+
+landscape_paths <- tif_files
+# Loop through each raster in the landscapes
+for (raster_path in landscape_paths) {
+  
+  # Load raster
+  raster <- rast(raster_path)
+  
+  # Extract raster name (without file extension)
+  raster_name <- tools::file_path_sans_ext(basename(raster_path))
+  
+  message("Processing raster: ", raster_name)
+  
+  # Initialize list to store results for current raster
+  edge_density_results <- vector("list", num_points * num_buffer_sizes)
+  result_index <- 1
+  
+  # Loop through each point and buffer size
+  for (point in 1:num_points) {
+    point_sf <- points[point, , drop = FALSE]  # Extract individual point
+    
+    for (buffer_size in buffer_sizes) {
+      # Calculate edge density
+      result <- calculate_edge_density(point_sf, raster, buffer_size)
+      
+      # Store result if not NULL
+      # if (!is.null(result)) {
+      #   edge_density_results[[result_index]] <- result
+      #   result_index <- result_index + 1
+      # }
+    }
+  }
+  
+  # Combine all results into a data frame
+  edge_density_df <- do.call(rbind, edge_density_results)
+  
+  # Store data frame in the list with raster name as key
+  edge_density_results_list[[raster_name]] <- edge_density_df
+}
+
+# Print completion message
+message("Processing complete. Results stored in 'edge_density_results_list'.")
