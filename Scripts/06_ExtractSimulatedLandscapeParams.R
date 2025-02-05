@@ -28,13 +28,13 @@ input_folder <- "Rasters/production_0.55"
 tif_files <- list.files(input_folder, pattern = "\\.tif$", full.names = TRUE)
 
 # Read multiple rasters at once into a single SpatRaster object
-landscape <- rast(tif_files)
-plot(landscape[[1]])
+landscapes<- rast(tif_files)
+plot(landscapes[[1]])
 
 #----------------------------
 #CALCULATE HABITAT AMOUNT 
 #----------------------------
-test <- landscape[[10]]
+test <- landscapes[[1]]
 plot(test)
 #extract the centre of each 100m cell 
 
@@ -42,14 +42,12 @@ cell_centers <- xyFromCell(test, 1:ncell(test))
 points <- vect(cell_centers, type="points")
 
 #test points 
- points <- points[500050:500150, ] #test function with few points
+points <- points[500050:500950, ] #test function with few points
 plot(points, add=TRUE, col="red",  cex=0.0000000000000000001)
 plot(points, add=TRUE, col="red")
 
 # Assign a unique ID to each point
 points$id <- paste0("p", 1:nrow(points))
-
-
 
 #1000*1000 = 1,000,000 
 #so each square is 1ha (100x100) to make 1Mha
@@ -59,10 +57,7 @@ points$id <- paste0("p", 1:nrow(points))
 #--------------------------------------------------
 #Calculate habitat amount ####
 #--------------------------------------------------
-
-#1Mha landscape; so each square is 1ha
-# Initialize lists to store results
-buffer_distances <- c(1,20)
+# Function to process a single raster and calculate habitat amount
 process_extraction <- function(raster, buffer_distances, points) {
   habAmount <- list()
   
@@ -83,76 +78,55 @@ process_extraction <- function(raster, buffer_distances, points) {
     # Clip the buffers to the raster extent
     buffers_clipped <- st_intersection(buffers_sf, raster_ext)
     
-    # Perform extraction - frac calculates the faction of each value; 0 or 1 in each value in the buffer 
-    extraction <- exact_extract(raster, buffers_clipped,'frac', progress = TRUE)
-    extraction$id <- buffers$id #add Id back in 
-
+    # Perform extraction - 'frac' calculates the fraction of each value
+    extraction <- exact_extract(raster, buffers_clipped, 'frac', progress = TRUE)
+    extraction$id <- buffers$id  # Add ID back in 
     
     # Store results in the list
     habAmount[[paste0("buffer_", buffer_distance)]] <- extraction
   }
   
-  return(habAmount)
+  # Collapse the nested list into a long data frame
+ habAmountlong <-  rbindlist(habAmount, idcol = "buffer_size", fill = TRUE) %>% 
+   select(buffer_size, frac_0, frac_1, id)
+  
+  return(habAmountlong)
 }
-####
-#####
-####
-process_extraction <- function(raster, buffer_distances, points) {
-  library(data.table)
-  library(sf)
-  library(exactextractr)
+
+all_habAmount <- process_extraction(raster = test, buffer_distances = buffer_distances, points = points) 
+
+
+# Process habitat amount for multiple rasters and store outputs in a list
+process_all_landscapes <- function(rasters, buffer_distances, points) {
+  results_list <- list()
   
-  habAmount <- list()
-  
-  # Ensure points have unique IDs
-  points$id <- paste0("p", seq_len(nrow(points)))
-  
-  for (buffer_distance in buffer_distances) {
-    # Create buffers around each point and retain IDs
-    buffers <- st_as_sf(buffer(points, width = buffer_distance))
-    buffers$id <- points$id  # Retain point IDs
+  # Loop through each layer in the SpatRaster object
+  for (i in 1:nlyr(rasters)) {
+    cat("Processing raster", i, "of", nlyr(rasters), "\n")
     
-    # Clip buffers to raster extent
-    raster_ext <- st_as_sf(st_as_sfc(st_bbox(raster)))
-    buffers_clipped <- st_intersection(buffers, raster_ext)
+    raster <- rasters[[i]]  # Extract individual raster layer
     
-    # Perform extraction
-    extraction <- exact_extract(raster, buffers_clipped, 'frac',progress = TRUE)
+    #get raster name based on file name 
+    raster_name <- sources(raster) %>% basename() %>% tools::file_path_sans_ext()  
     
-    # # Summarize the extraction using lapply
-    # extraction_with_id <- rbindlist(lapply(seq_along(extraction), function(i) {
-    #   extraction_dt <- setDT(extraction[[i]])
-    #   extraction_dt[, id := buffers_clipped$id[i]]
-    #   extraction_dt[, .(
-    #     sum_class_cells = sum(value, na.rm = TRUE),
-    #     total_class_coverage_fraction = sum(coverage_fraction, na.rm = TRUE)
-    #   ), by = .(id, value)]
-    # }))
-    # 
-    # Store summarized results
-    habAmount[[paste0("buffer_", buffer_distance)]] <- extraction_with_id
+    # Apply the function and store results
+    habAmount <- process_extraction(raster = raster, buffer_distances = buffer_distances, points)
+    
+    results_list[[raster_name]] <- habAmount
   }
   
-  return(habAmount)
+  return(results_list)
 }
 
+# Example Usage
+landscapes # Assuming `landscape` is a SpatRaster object with multiple layers
+buffer_distances <- c(1, 20)
 
+# Process all rasters
+all_habAmount <- process_all_landscapes(rasters = landscapes, buffer_distances = buffer_distances, points = points)
 
-###
-####
-###
-
-# Usage
-start_time <- Sys.time()
-
-habAmount <- process_extraction(raster = test, buffer_distances = c(1, 20), points = points)
-
-end_time <- Sys.time()
-message("Habitat amount calculation completed in ", end_time - start_time, " seconds.")
-
-
-# Collapse the nested list into a long data frame
-habAmount_long <- imap_dfr(habAmount, ~ bind_rows(.x) %>% mutate(buffer_name = .y))
+#Save habitat amounts outputs #####
+saveRDS(all_habAmount, "Outputs/Simulated_055_LandscapeParams.rds")
 #--------------------------------------------------
 #CALCULATE EDGE DENSITY ####
 #--------------------------------------------------
