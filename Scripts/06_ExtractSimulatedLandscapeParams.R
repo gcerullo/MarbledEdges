@@ -29,12 +29,15 @@ tif_files <- list.files(input_folder, pattern = "\\.tif$", full.names = TRUE)
 
 # Read multiple rasters at once into a single SpatRaster object
 landscapes<- rast(tif_files)
+plot(landscapes)
 plot(landscapes[[1]])
 
+#define key paramas####
+buffer_sizes <- c(1, 20)  # Buffer sizes in meters
 #----------------------------
 #CALCULATE HABITAT AMOUNT 
 #----------------------------
-test <- landscapes[[1]]
+test <- landscapes[[7]]
 plot(test)
 #extract the centre of each 100m cell 
 
@@ -42,12 +45,55 @@ cell_centers <- xyFromCell(test, 1:ncell(test))
 points <- vect(cell_centers, type="points")
 
 #test points 
-#points <- points[500050:500100, ] #test function with few points
+#points <- points[500050:500350, ] #test function with few points
 plot(points, add=TRUE, col="red",  cex=0.0000000000000000001)
 plot(points, add=TRUE, col="red")
 
 # Assign a unique ID to each point
-points$id <- paste0("p", 1:nrow(points))
+points$id <- paste0(1:nrow(points))
+# Convert 'id' to numeric (if it's not already)
+points$id <- as.numeric(points$id)
+# Create a SpatVector from the cell centers
+
+# Define spacing
+spacing <- 100
+
+# Select every 100th row and every 100th column of raster
+rows <- seq(1, nrow(test), by = spacing)  # Select every 100th row
+cols <- seq(1, ncol(test), by = spacing)  # Select every 100th column
+
+# Use expand.grid to combine rows and columns
+grid_indices <- expand.grid(row = rows, col = cols)
+cell_indices <- (grid_indices$row - 1) * n_cols + grid_indices$col  # Compute the cell indices
+cell_centers <- xyFromCell(test, cell_indices)  # Get center coordinates
+
+# Convert these into a SpatVector (points)
+stratified_points <- vect(cell_centers, type = "points", crs = crs(test))
+plot(test)  # Plot the raster
+plot(stratified_points)
+
+
+#########
+######
+# Define the number of points
+n_points <- 1000
+
+# Calculate the spacing for rows and columns (1000 rows, 1000 columns)
+rows <- seq(1, nrow(test), length.out = sqrt(n_points))
+cols <- seq(1, ncol(test), length.out = sqrt(n_points))
+
+# Create grid of row and column indices
+grid_indices <- expand.grid(row = rows, col = cols)
+
+# Convert to spatial coordinates
+cell_centers <- xyFromCell(test, (grid_indices$row - 1) * ncol(test) + grid_indices$col)
+
+# Create SpatVector of points
+points2 <- vect(cell_centers, type = "points", crs = crs(test))
+
+# Plot the raster and stratified points
+plot(test)  # Plot the raster
+plot(points2, add = TRUE, col = "red", pch = 16)  # Overlay the stratified points
 
 #1000*1000 = 1,000,000 
 #so each square is 1ha (100x100) to make 1Mha
@@ -139,10 +185,9 @@ saveRDS(all_habAmount, "Outputs/Simulated_055_LandscapeParams.rds")
 #The factor 10,000 is used to convert the result into meters per hectare (m/ha), as 1 hectare = 10,000 m².
 
 points
-raster
+raster <- landscapes[[1]]
 # Assuming points (SpatVector) and raster (SpatRaster) are already loaded
 # Example buffer sizes (adjust based on your analysis)
-buffer_sizes <- c(1, 20)  # Buffer sizes in meters
 
 # Function to calculate edge density for a single point with a specific buffer size
 calculate_edge_density <- function(point, raster, buffer_size) {
@@ -151,16 +196,19 @@ calculate_edge_density <- function(point, raster, buffer_size) {
   
   # Step 2: Mask the raster with the buffer
   masked_raster <- mask(raster, buffer)  # Mask raster by the buffer
-  
   # Step 3: Calculate edge density within the masked raster
   edge_density <- lsm_l_ed(masked_raster, count_boundary = FALSE, directions = 4)  # rook's edge density
   
+  # Extract point ID from the point object
+  point_id <- point$id
+  
   # Add buffer size and point information to the result
   edge_density$buffer_size <- buffer_size
-  edge_density$point_id <- point$id
+  edge_density$point_id <- point_id  # Assign point ID to the result
   
   return(edge_density)
 }
+
 
 # Preallocate the list to store results (number of points * number of buffer sizes)
 num_points <- nrow(points)
@@ -173,13 +221,13 @@ result_index <- 1
 
 start_time <- Sys.time()
 
-# Loop through each point and buffer size to calculate edge density
+## Loop through each point and buffer size to calculate edge density
 for (point in 1:num_points) {
   point_sf <- points[point, ]  # Extract individual point
   
   for (buffer_size in buffer_sizes) {
     # Calculate edge density for the point with the given buffer size
-    result <- calculate_edge_density(point_sf, raster, buffer_size)
+    result <- calculate_edge_density(point_sf, raster, buffer_size)  # No point_id argument here
     
     # Store the result in the preallocated list
     edge_density_results[[result_index]] <- result
@@ -188,13 +236,19 @@ for (point in 1:num_points) {
     result_index <- result_index + 1
     
     # Print progress for each point and buffer size
-    message("Processed point ", point, " with buffer size ", buffer_size, " meters.")
+    # message("Processed point ", point, " (ID: ", point_sf$id, ") with buffer size ", buffer_size, " meters.")
+    
+    #print every 1000 pts #takes about 4 mins per 1000 points 
+    if (point %% 1000 == 0) {
+      message("Processed ", point, " points out of ", num_points, ".")
+    }
   }
 }
 
 end_time <- Sys.time()
 message("Edge density calculation completed in ", end_time - start_time, " seconds.")
 
+saveRDS(edge_density_results, "Outputs/test_edge_density.rds")
 # Combine the results into a single data frame or tibble
 edge_density_df <- do.call(rbind, edge_density_results)
 
@@ -202,47 +256,80 @@ edge_density_df <- do.call(rbind, edge_density_results)
 print(edge_density_df)
 
 #============================================================================================
-# Initialize an empty list to store results for each raster
-edge_density_results_list <- list()
 
-landscape_paths <- tif_files
-# Loop through each raster in the landscapes
-for (raster_path in landscape_paths) {
+# Function to calculate edge density for a single point with a specific buffer size
+calculate_edge_density <- function(point, raster, buffer_size) {
   
-  # Load raster
-  raster <- rast(raster_path)
+  buffers <- buffer(points, width = buffer_distance)
+  buffers$id <- points$id  # Retain point IDs in the buffer object
   
-  # Extract raster name (without file extension)
-  raster_name <- tools::file_path_sans_ext(basename(raster_path))
+  # Convert buffers to sf format
+  buffers_sf <- st_as_sf(buffers)
   
-  message("Processing raster: ", raster_name)
+  # Create an extent polygon from the raster
+  raster_ext <- st_as_sf(st_as_sfc(st_bbox(raster)))
+  # Clip the buffers to the raster extent
+  buffers_clipped <- st_intersection(buffers_sf, raster_ext)
+  # Step 3: Calculate edge density within the masked raster
+  # Perform extraction - 'frac' calculates the fraction of each value
+  extraction <- exact_extract(raster, buffers_clipped, 'frac', progress = TRUE)
   
-  # Initialize list to store results for current raster
-  edge_density_results <- vector("list", num_points * num_buffer_sizes)
-  result_index <- 1
+  edge_density <- lsm_l_ed(masked_raster, count_boundary = FALSE, directions = 4)  # rook's edge density
   
-  # Loop through each point and buffer size
-  for (point in 1:num_points) {
-    point_sf <- points[point, , drop = FALSE]  # Extract individual point
-    
-    for (buffer_size in buffer_sizes) {
-      # Calculate edge density
-      result <- calculate_edge_density(point_sf, raster, buffer_size)
-      
-      # Store result if not NULL
-      # if (!is.null(result)) {
-      #   edge_density_results[[result_index]] <- result
-      #   result_index <- result_index + 1
-      # }
-    }
-  }
+  # Extract point ID from the point object
+  point_id <- point$id
   
-  # Combine all results into a data frame
-  edge_density_df <- do.call(rbind, edge_density_results)
+  # Add buffer size and point information to the result
+  edge_density$buffer_size <- buffer_size
+  edge_density$point_id <- point_id  # Assign point ID to the result
   
-  # Store data frame in the list with raster name as key
-  edge_density_results_list[[raster_name]] <- edge_density_df
+  return(edge_density)
 }
 
-# Print completion message
-message("Processing complete. Results stored in 'edge_density_results_list'.")
+
+# Preallocate the list to store results (number of points * number of buffer sizes)
+num_points <- nrow(points)
+num_buffer_sizes <- length(buffer_sizes)
+total_results <- num_points * num_buffer_sizes
+edge_density_results <- vector("list", total_results)
+
+# Initialize counter for results list
+result_index <- 1
+
+start_time <- Sys.time()
+
+## Loop through each point and buffer size to calculate edge density
+for (point in 1:num_points) {
+  point_sf <- points[point, ]  # Extract individual point
+  
+  for (buffer_size in buffer_sizes) {
+    # Calculate edge density for the point with the given buffer size
+    result <- calculate_edge_density(point_sf, raster, buffer_size)  # No point_id argument here
+    
+    # Store the result in the preallocated list
+    edge_density_results[[result_index]] <- result
+    
+    # Increment result index
+    result_index <- result_index + 1
+    
+    # Print progress for each point and buffer size
+    # message("Processed point ", point, " (ID: ", point_sf$id, ") with buffer size ", buffer_size, " meters.")
+    
+    #print every 1000 pts #takes about 4 mins per 1000 points 
+    if (point %% 1000 == 0) {
+      message("Processed ", point, " points out of ", num_points, ".")
+    }
+  }
+}
+
+end_time <- Sys.time()
+message("Edge density calculation completed in ", end_time - start_time, " seconds.")
+
+saveRDS(edge_density_results, "Outputs/test_edge_density.rds")
+# Combine the results into a single data frame or tibble
+edge_density_df <- do.call(rbind, edge_density_results)
+
+# View the results
+print(edge_density_df)
+
+
