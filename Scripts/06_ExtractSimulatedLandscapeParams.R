@@ -36,6 +36,7 @@ plot(landscapes[[1]])
 
 #define key paramas####
 buffer_sizes <- c(1, 20)  # Buffer sizes in meters
+buffer_distances <- c(1, 20)  # Buffer sizes in meters
 
 #--------------------------------------
 #Develop sampling points across landscape #####
@@ -65,31 +66,30 @@ points <- vect(cell_centers, type = "points", crs = crs(test))
 plot(test)  # Plot the raster
 plot(points, add = TRUE, col = "red", pch = 16)  # Overlay the stratified points
 
-#add a unique ID
+
+# remove points on the edge of the raster so that buffers are inside the boundary
+# Set the edge buffer distance
+edge_buffer <- 20  # 20 cells from the edges
+
+
+# Extract coordinates from the SpatVector
+coords <- crds(points)  # Extract coordinates (returns a matrix with x and y)
+
+# Apply the filtering conditions
+valid_coords <- coords[
+  coords[, 1] > edge_buffer & coords[, 1] <= (1000 - edge_buffer) &  # x filter
+    coords[, 2] > edge_buffer & coords[, 2] <= (1000 - edge_buffer),   # y filter
+]
+
+# Convert the filtered coordinates back into a SpatVector
+points <- vect(valid_coords, type = "points", crs = crs(points))
+
+# Add IDs to the filtered points
 points$id <- paste0(1:nrow(points))
-# Remove points that are within 20 cells from the edge of the raster
-edge_buffer <- 20  # Set the buffer distance in cells (20 cells from edge)
 
-# Calculate the minimum and maximum row and column indices that are not too close to the edge
-rows <- which(grid_indices$row > edge_buffer & grid_indices$row <= nrow(test) - edge_buffer)
-cols <- which(grid_indices$col > edge_buffer & grid_indices$col <= ncol(test) - edge_buffer)
-
-# Filter the points to keep only those that are within the valid range
-valid_points <- grid_indices[rows, ]
-valid_points <- valid_points[cols, ]
-
-# Convert the filtered grid of row and column indices to spatial coordinates
-valid_cell_centers <- xyFromCell(test, (valid_points$row - 1) * ncol(test) + valid_points$col)
-
-# Create the SpatVector for valid points
-points <- vect(valid_cell_centers, type = "points", crs = crs(test))
-
-# Add unique IDs to the valid points
-points$id <- paste0(1:nrow(points))
-
-# Plot the raster and the filtered valid points (no edge points)
+# Plot the raster and the filtered valid points
 plot(test)  # Plot the raster
-plot(points, add = TRUE, col = "red", pch = 16)  # Overlay the stratified points
+plot(points, add = TRUE, col = "red", pch = 16)  # Overlay the filtered points
 
 
 
@@ -140,7 +140,7 @@ process_extraction <- function(raster, buffer_distances, points) {
   return(habAmountlong)
 }
 
-all_habAmount <- process_extraction(raster = test, buffer_distances = buffer_distances, points = points) 
+#all_habAmount <- process_extraction(raster = test, buffer_distances = buffer_distances, points = points) 
 
 
 # Process habitat amount for multiple rasters and store outputs in a list
@@ -172,7 +172,7 @@ landscapes # Assuming `landscape` is a SpatRaster object with multiple layers
 all_habAmount <- process_all_landscapes(rasters = landscapes, buffer_distances = buffer_distances, points = points)
 
 #Save habitat amounts outputs #####
-saveRDS(all_habAmount, "Outputs/HabAmount_Simulated_055_LandscapeParams.rds")
+saveRDS(all_habAmount, "Outputs/HabAmount10000pts_Simulated_055_LandscapeParams.rds")
 #--------------------------------------------------
 #CALCULATE EDGE DENSITY ####
 #--------------------------------------------------
@@ -264,7 +264,7 @@ message("Edge density calculation completed in ", end_time - start_time, " secon
 
 edge_density_df <- rbindlist(edge_density_list, idcol = "landscape_name" )
 # Save the list of dataframes to an RDS file
-saveRDS(edge_density_list, "Outputs/EdgeDensity_Simulated_055_LandscapeParams.rdsedge_density_list.rds")
+saveRDS(edge_density_list, "Outputs/EdgeDensity10000pts_Simulated_055_LandscapeParams.rdsedge_density_list.rds")
 
 #Quick plot of distribution of edge density values for different landscapes & buffers ####
 
