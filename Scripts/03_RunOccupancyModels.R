@@ -106,22 +106,22 @@ print(Sys.time() - start_time)
 
 # Save results for interaction model
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
-
-# Step 7: Adding PC1 and Edge Interactions
-# ------------------------------------------------------
-# Explore interactions between `scaleCoastDist` and edge density metrics.
-start_time <- Sys.time()
-coastal_interaction_model <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-    PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + scaleCoastDist * scaleEdgeDens100 + 
-    scaleHabAmount2000 + scaleEdgeDens2000 + scaleCoastDist * scaleEdgeDens2000,
-  data = analysisData,
-  starts = coef(model_with_interactions)  # Use previous model's coefficients
-)
-print(Sys.time() - start_time)
-
-# Save results
-save(list = ls(), file = 'Models/ManuscriptResults.RData')
+# 
+# # Step 7: Adding PC1 and Edge Interactions
+# # ------------------------------------------------------
+# # Explore interactions between `scaleCoastDist` and edge density metrics.
+# start_time <- Sys.time()
+# coastal_interaction_model <- occu(
+#   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
+#     PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + scaleCoastDist * scaleEdgeDens100 + 
+#     scaleHabAmount2000 + scaleEdgeDens2000 + scaleCoastDist * scaleEdgeDens2000,
+#   data = analysisData,
+#   starts = coef(model_with_interactions)  # Use previous model's coefficients
+# )
+# print(Sys.time() - start_time)
+# 
+# # Save results
+# save(list = ls(), file = 'Models/ManuscriptResults.RData')
 
 # Step 8: Adding Interactions with PCA1
 # ---------------------------------------

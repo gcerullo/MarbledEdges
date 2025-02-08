@@ -57,6 +57,9 @@ predict_data <- predict_data %>%
     scaleDoy2 = doy_means$mean_scaleDoy2
   )
 
+#save organised covariates for script 07
+saveRDS(predict_data, "Outputs/ScaledCovariates.rds")
+
 # Step 3: Predict Occupancy with standard errors (for error ribbon)
 predictions <- predict(
   model,  

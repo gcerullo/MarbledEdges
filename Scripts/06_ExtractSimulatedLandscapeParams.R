@@ -51,7 +51,7 @@ plot(test)
 #subset stratified points across the rasters
 
 # Define the number of total points to stratify
-n_points <- 100
+n_points <- 10000
 
 # Calculate the spacing for rows and columns (1000 rows, 1000 columns)
 rows <- seq(1, nrow(test), length.out = sqrt(n_points))
@@ -90,11 +90,6 @@ points$id <- paste0(1:nrow(points))
 # Plot the raster and the filtered valid points
 plot(test)  # Plot the raster
 plot(points, add = TRUE, col = "red", pch = 16)  # Overlay the filtered points
-
-
-
-
-
 
 #--------------------------------------------------
 #Calculate habitat amount functions ####
@@ -154,8 +149,8 @@ process_all_landscapes <- function(rasters, buffer_distances, points) {
     raster <- rasters[[i]]  # Extract individual raster layer
     
     #get raster name based on file name 
-    raster_name <- sources(raster) %>% basename() %>% tools::file_path_sans_ext()  
-    
+     raster_name <- sources(raster) %>% basename() %>% tools::file_path_sans_ext() 
+  
     # Apply the function and store results
     habAmount <- process_extraction(raster = raster, buffer_distances = buffer_distances, points)
     
@@ -180,7 +175,6 @@ saveRDS(all_habAmount, "Outputs/HabAmount10000pts_Simulated_055_LandscapeParams.
 #and that have a hard edge as a proportion of a cells in a buffer  
 #--------------------------------------------------
 
-
 # Define a function to compute forest edge cells for a single layer
 forest_edge_cells <- function(raster_layer) {
   
@@ -199,7 +193,7 @@ forest_edge_cells <- function(raster_layer) {
 # Create an empty list to store forest edge rasters for each layer
 forest_edge_list <- list()
 
-# Loop through each layer in the SpatRaster
+# Loop through each layer in the SpatRaster finding all forest edge cells
 for (i in 1:nlyr(landscapes)) {
   # Apply the function to each layer
   forest_edge_layer <- forest_edge_cells(landscapes[[i]])
@@ -241,23 +235,47 @@ process_extraction_edge <- function(raster, buffer_distances, points) {
     extraction$id <- buffers$id  # Add ID back in 
     
     # Store results in the list
-    habAmount[[paste0("buffer_", buffer_distance)]] <- extraction
+    edgeAmount[[paste0("buffer_", buffer_distance)]] <- extraction
   }
   
   # Collapse the nested list into a long data frame
-  edgeAmount <-  rbindlist(habAmount, idcol = "buffer_size", fill = TRUE) %>% 
+  edgeAmount <-  rbindlist(edgeAmount, idcol = "buffer_size", fill = TRUE) %>% 
     select(buffer_size, frac_0, frac_1, id)
   
   return(edgeAmount)
 }
 
+#APPLY to all of my rasters
 
-#  Usage
-landscape_forest_edges #
+# Process habitat amount for multiple rasters and store outputs in a list
+process_all_landscape_edges <- function(rasters, buffer_distances, points) {
+  results_list <- list()
+  
+  # Loop through each layer in the SpatRaster object
+  for (i in 1:nlyr(rasters)) {
+    cat("Processing raster", i, "of", nlyr(rasters), "\n")
+    
+    raster <- rasters[[i]]  # Extract individual raster layer
+    
+    #get raster name based on file name 
+    raster_name <- varnames(raster) %>% basename() %>% tools::file_path_sans_ext() 
+    
+    # Apply the function and store results
+    edgeAmount <- process_extraction_edge(raster = raster, buffer_distances = buffer_distances, points)
+    
+    results_list[[raster_name]] <- edgeAmount
+  }
+  
+  return(results_list)
+}
 
+# Example Usage
+landscape_forest_edges 
 # Process all rasters
-all_edges <- process_all_landscapes(rasters = landscape_forest_edges, buffer_distances = buffer_distances, points = points)
+all_edges <- process_all_landscape_edges(rasters = landscape_forest_edges, buffer_distances = buffer_distances, points = points)
 
+#Save all_edges outputs #####
+saveRDS(all_edges, "Outputs/EdgeDensity10000pts_Simulated_055_LandscapeParams.rdsedge_density_list.rds")
 #---------------------------------------------------
 
 
@@ -368,4 +386,4 @@ edge_density_df %>%
 # 
 # edge_density_df <- rbindlist(edge_density_list, idcol = "landscape_name" )
 # # Save the list of dataframes to an RDS file
-# saveRDS(edge_density_list, "Outputs/EdgeDensity10000pts_Simulated_055_LandscapeParams.rdsedge_density_list.rds")
+# saveRDS(edge_density_list, "Outputs/LinearEdgeDensity10000pts_Simulated_055_LandscapeParams.rdsedge_density_list.rds")
