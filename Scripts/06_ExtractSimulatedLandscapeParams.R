@@ -92,7 +92,34 @@ plot(test)  # Plot the raster
 plot(points, add = TRUE, col = "red", pch = 16)  # Overlay the filtered points
 
 #--------------------------------------------------
-#Calculate habitat amount functions ####
+#at the point scale, is habitat forest or not? 
+#--------------------------------------------------
+# Initialize an empty list to store the dataframes for each raster layer
+layer_values_list <- list()
+
+
+# Loop over each layer in the SpatRaster
+for (i in 1:nlyr(landscapes)) {
+  # Extract values from the ith layer for all points
+  extracted_values <- extract(landscapes[[i]], points)
+  
+  # Get the raster name based on its source file name
+  raster_name <- sources(landscapes[[i]]) %>% basename() %>% tools::file_path_sans_ext() 
+  
+  # Convert the extracted values into a dataframe with the point id and the raster value
+  layer_df <- data.frame(
+    point_id = points$id,  # Get point IDs
+    raster_value = extracted_values  # Raster values at the points
+  )
+  
+  # Add the dataframe to the list with the raster name as the list element name
+  layer_values_list[[raster_name]] <- layer_df
+}
+
+point_id_extraction <- rbindlist(layer_values_list, idcol = "landscape_name")
+saveRDS(point_id_extraction, "Outputs/point_forest_or_plantation_055P.rds")
+#--------------------------------------------------
+#Calculate habitat amount in buffer functions functions ####
 #--------------------------------------------------
 
 #1000*1000 = 1,000,000 
