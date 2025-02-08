@@ -276,22 +276,6 @@ all_edges <- process_all_landscape_edges(rasters = landscape_forest_edges, buffe
 
 #Save all_edges outputs #####
 saveRDS(all_edges, "Outputs/EdgeDensity10000pts_Simulated_055_LandscapeParams.rdsedge_density_list.rds")
-#---------------------------------------------------
-
-
-#Quick plot of distribution of edge density values for different landscapes & buffers ####
-
-
-# Group the data by landscape_name and buffer_size, and create a histogram of 'value'
-edge_density_df %>%
-  group_by(landscape_name, buffer_size) %>%
-  ggplot(aes(x = value)) +
-  geom_histogram(binwidth = 500, fill = "blue", color = "black", alpha = 0.7) +  # Adjust binwidth as needed
-  facet_wrap(~landscape_name + buffer_size, scales = "free_y") +  # Facet by landscape_name and buffer_size
-  labs(title = "Histogram of Values Grouped by Landscape and Buffer Size",
-       x = "Value",
-       y = "Frequency") +
-  theme_minimal()
 
 
 #--------------------------------------------------
@@ -387,3 +371,18 @@ edge_density_df %>%
 # edge_density_df <- rbindlist(edge_density_list, idcol = "landscape_name" )
 # # Save the list of dataframes to an RDS file
 # saveRDS(edge_density_list, "Outputs/LinearEdgeDensity10000pts_Simulated_055_LandscapeParams.rdsedge_density_list.rds")
+
+
+#Quick plot of distribution of edge density values for different landscapes & buffers ####
+
+# 
+# # Group the data by landscape_name and buffer_size, and create a histogram of 'value'
+# edge_density_df %>%
+#   group_by(landscape_name, buffer_size) %>%
+#   ggplot(aes(x = value)) +
+#   geom_histogram(binwidth = 500, fill = "blue", color = "black", alpha = 0.7) +  # Adjust binwidth as needed
+#   facet_wrap(~landscape_name + buffer_size, scales = "free_y") +  # Facet by landscape_name and buffer_size
+#   labs(title = "Histogram of Values Grouped by Landscape and Buffer Size",
+#        x = "Value",
+#        y = "Frequency") +
+#   theme_minimal()
