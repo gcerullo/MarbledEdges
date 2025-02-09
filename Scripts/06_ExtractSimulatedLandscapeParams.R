@@ -19,15 +19,19 @@ library(tidyverse)
 # library(purrr)
 library(ggplot2)
 
+#KEY DESCISION -------------------------
+
+# Define (uncomment) the folder where the TIFF files are stored - this determines which production target is being explored
+#input_folder <- "Rasters/production_0.55"
+#input_folder <- "Rasters/production_0.24" 
+input_folder <- "Rasters/production_0.58" 
+# List all TIFF files in the folder (recursive = FALSE to avoid subfolders)
+tif_files <- list.files(input_folder, pattern = "\\.tif$", full.names = TRUE)
+production_target_name <- basename(input_folder)
+#-------------------------------------
 
 #read in final model
 model <- readRDS("Models/pc1_interaction_model.rds")
-
-# Define the folder where the TIFF files are stored
-input_folder <- "Rasters/production_0.55"
-
-# List all TIFF files in the folder (recursive = FALSE to avoid subfolders)
-tif_files <- list.files(input_folder, pattern = "\\.tif$", full.names = TRUE)
 
 # Read multiple rasters at once into a single SpatRaster object
 landscapes<- rast(tif_files)
@@ -42,7 +46,7 @@ buffer_distances <- c(1, 20)  # Buffer sizes in meters
 #Develop sampling points across landscape #####
 #--------------------------------------
 
-test <- landscapes[[7]]
+test <- landscapes[[3]]
 plot(test)
 
 #extract the centre of each 100m cell 
@@ -101,7 +105,7 @@ layer_values_list <- list()
 # Loop over each layer in the SpatRaster
 for (i in 1:nlyr(landscapes)) {
   # Extract values from the ith layer for all points
-  extracted_values <- extract(landscapes[[i]], points)
+  extracted_values <- terra::extract(landscapes[[i]], points)
   
   # Get the raster name based on its source file name
   raster_name <- sources(landscapes[[i]]) %>% basename() %>% tools::file_path_sans_ext() 
@@ -117,7 +121,10 @@ for (i in 1:nlyr(landscapes)) {
 }
 
 point_id_extraction <- rbindlist(layer_values_list, idcol = "landscape_name")
-saveRDS(point_id_extraction, "Outputs/point_forest_or_plantation_055P.rds")
+# Define your base file name which contains production target 
+file_name <- "point_forest_or_plantation.rds"
+file_name <- paste0(production_target_name, "_", file_name)
+saveRDS(point_id_extraction, file.path("Outputs", file_name))
 #--------------------------------------------------
 #Calculate habitat amount in buffer functions functions ####
 #--------------------------------------------------
@@ -157,7 +164,7 @@ process_extraction <- function(raster, buffer_distances, points) {
   
   # Collapse the nested list into a long data frame
  habAmountlong <-  rbindlist(habAmount, idcol = "buffer_size", fill = TRUE) %>% 
-   select(buffer_size, frac_0, frac_1, id)
+   dplyr::select(buffer_size, frac_0, frac_1, id)
   
   return(habAmountlong)
 }
@@ -194,7 +201,9 @@ landscapes # Assuming `landscape` is a SpatRaster object with multiple layers
 all_habAmount <- process_all_landscapes(rasters = landscapes, buffer_distances = buffer_distances, points = points)
 
 #Save habitat amounts outputs #####
-saveRDS(all_habAmount, "Outputs/HabAmount10000pts_Simulated_055_LandscapeParams.rds")
+file_name <- "HabAmount10000pts_SimulatedParams.rds"
+file_name <- paste0(production_target_name, "_", file_name)
+saveRDS(all_habAmount, file.path("Outputs", file_name))
 
 #--------------------------------------------------
 #CALCULATE proportional EDGE DENSITY ####
@@ -205,8 +214,8 @@ saveRDS(all_habAmount, "Outputs/HabAmount10000pts_Simulated_055_LandscapeParams.
 # Define a function to compute forest edge cells for a single layer
 forest_edge_cells <- function(raster_layer) {
   
-  # Create a mask for forest cells (value == 1)
-  forest_mask <- raster_layer == 1
+  # Create a mask for forest cells (value == 0)
+  forest_mask <- raster_layer == 0
   
   # Identify cells that share a border with any different class in NSEW direction  
   class_difference <- boundaries(raster_layer, inner = TRUE, directions = 4, classes = TRUE)
@@ -267,7 +276,7 @@ process_extraction_edge <- function(raster, buffer_distances, points) {
   
   # Collapse the nested list into a long data frame
   edgeAmount <-  rbindlist(edgeAmount, idcol = "buffer_size", fill = TRUE) %>% 
-    select(buffer_size, frac_0, frac_1, id)
+    dplyr::select(buffer_size, frac_0, frac_1, id)
   
   return(edgeAmount)
 }
@@ -302,12 +311,15 @@ landscape_forest_edges
 all_edges <- process_all_landscape_edges(rasters = landscape_forest_edges, buffer_distances = buffer_distances, points = points)
 
 #Save all_edges outputs #####
-saveRDS(all_edges, "Outputs/EdgeDensity10000pts_Simulated_055_LandscapeParams.rdsedge_density_list.rds")
+file_name <- "EdgeDensity10000pts_SimulatedParams.rds"
+file_name <- paste0(production_target_name, "_", file_name)
+saveRDS(all_edges, file.path("Outputs", file_name))
 
 
 #--------------------------------------------------
 #CALCULATE LINEAR EDGE DENSITY ####
 #NB - this method calculates the linear length of hard edges using landscape metrics 
+#It doesnt count the number of forest cells with a hard edge, but rather the actual LENGTH of hard edges
 #--------------------------------------------------
 
 #Description of edge density in landscapemetrics package:

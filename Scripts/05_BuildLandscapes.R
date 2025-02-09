@@ -6,7 +6,6 @@ library(data.table)
 #library(rflsgen) #for generating landscapes with different fragmentation patterns
 library(tidyverse)
 library(landscapeR)
-library(terra)
 
 #read in custom functions
 source("Inputs/Scenarios/Functions.R")
@@ -146,7 +145,7 @@ for (landscape in landscapes) {
 #          #max even flow is given as the area of forest in the landscape * MAI
 #          max_SL_production_volume = area * MAI *scenarioLength) %>% 
 #   
-#   select(startingL, max_SL_production_volume)  
+#   dplyr::select(startingL, max_SL_production_volume)  
 
 #Volume 
 
@@ -168,7 +167,7 @@ maxEvenFlow <-  startingL %>%
     
     #max even flow (m3_forest_over150 years
     max_SL_production_volume = forestEvenFlow_m3yr *scenarioLength) %>%
-  select(startingL,age, max_SL_production_volume)  
+  dplyr::select(startingL,age, max_SL_production_volume)  
 
 
 
@@ -252,7 +251,7 @@ startingL_basic <- startingL %>%
   group_by(startingL) %>%
   mutate(area = sum(area)) %>% 
   filter(habitat =="forest") %>%  
-  select(-habitat)
+  dplyr::select(-habitat)
 
 # #no historical clearance 
  SL_noCL <- startingL_basic %>% 
@@ -286,7 +285,7 @@ names(noCL_scenarios)
 noCL_results   <- determine_relative_production_targets(noCL_scenarios, production_targets, "NoCl")
 
 #only keep scenarios that are fully from intensive + R (ie sparing only for different production target)
-sparing <- noCL_results %>% ungroup %>%filter(E == 0) %>%  select(R, I, age, startingL, totalScenario_m3, production_target, composition)
+sparing <- noCL_results %>% ungroup %>%filter(E == 0) %>%  dplyr::select(R, I, age, startingL, totalScenario_m3, production_target, composition)
 sparing 
 
 #-------------------------------------------------------------------------------------------
@@ -347,40 +346,51 @@ generate_landscape <- function(prop_plantation_cells, total_area, num_steps = 30
 }
 
 # Example usage:
-# Define the proportion of plantation area
-prop_plantation_cells1 <- 0.319 * total_area
-prop_plantation_cells2 <- 0.771 * total_area
+# Define the proportion of plantation area (which determines the production target)
+prop_plantation_cells024 <- 0.319 * total_area
+prop_plantation_cells058 <- 0.771 * total_area
 
 # Call the function with different plantation areas
-x <- generate_landscape(prop_plantation_cells1, total_area)
-y<- generate_landscape(prop_plantation_cells2, total_area)
+p024 <- generate_landscape(prop_plantation_cells024, total_area)
+p058<- generate_landscape(prop_plantation_cells058, total_area)
 
-for (z in x) {
+for (z in p024) {
   plot(z)
 }
 
-for (z in y) {
+for (z in p058) {
   plot(z)
 }
 
-m <- as.matrix(x[[1]], wide = TRUE)
-# m <- as.matrix(x[[1]])
-z <- as.data.frame(m)
 
 #Output all rasters tifs in a folder with the production target name
 
-# Create the 'production_0.55' folder if it doesn't exist
-output_folder <- "Rasters/production_0.55"
+# Create the 'production_0.24' folder if it doesn't exist
+output_folder24 <- "Rasters/production_0.24"
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+
+# Create the 'production_0.58' folder if it doesn't exist
+output_folder58 <- "Rasters/production_0.58"
 if (!dir.exists(output_folder)) {
   dir.create(output_folder)
 }
 
 # Loop through the list `x` and save each raster as a .tif file
-lapply(names(x), function(name) {
+lapply(names(p024), function(name) {
   # Create a filename for each raster (e.g., "patches_1.tif")
-  output_file <- file.path(output_folder, paste0(name, ".tif"))
+  output_file <- file.path(output_folder24, paste0(name, ".tif"))
   
   # Save the raster as a TIFF file
-  writeRaster(x[[name]], filename = output_file, overwrite = TRUE)
+  writeRaster(p024[[name]], filename = output_file, overwrite = TRUE)
+})
+
+lapply(names(p058), function(name) {
+  # Create a filename for each raster (e.g., "patches_1.tif")
+  output_file <- file.path(output_folder58, paste0(name, ".tif"))
+  
+  # Save the raster as a TIFF file
+  writeRaster(p058[[name]], filename = output_file, overwrite = TRUE)
 })
 

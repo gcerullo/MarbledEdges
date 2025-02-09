@@ -90,25 +90,49 @@ for (target in production_targets) {
            upr_CI = Occupancy + 1.96 * SE )
   
   plot_data <- prediction_df %>% 
+    left_join(pt_value) %>%  
+    #filter only points that are actually forest 
+    filter(forest_plantation ==0) %>% 
     dplyr::select(landscape_name, point_id, Occupancy, OceanYear, lower_CI, upr_CI) %>% 
     mutate(landscape_numeric = as.numeric(gsub("patches_", "", landscape_name))) %>% 
     mutate(landscape_name = fct_reorder(landscape_name, landscape_numeric)) 
   
-  # Rapid plots
+  # # Rapid plots
+  # p_plot <- plot_data %>%  
+  #   ggplot( aes(x = landscape_name, y = Occupancy)) +
+  #   geom_jitter(color = 'lightgrey', size = 2, width = 0.1, alpha = 0.05) +  
+  #   geom_boxplot(fill = "#56B4E9", color = "black", width = 0.5, outlier.shape = NA, outlier.size = NA) + 
+  #   theme_classic(base_size = 14) +
+  #   facet_wrap(~OceanYear) +
+  #   labs(x = "Increasing landscape fragmentation ->", y = "Occupancy", title = paste("Occupancy in forest points across landscape (P =", target, ")")) +
+  #   theme(
+  #     text = element_text(size = 16, family = "serif"),
+  #     axis.text.x = element_text(angle = 45, hjust = 1),
+  #     axis.title = element_text(size = 14),
+  #     plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
+  #     legend.position = "none"
+  #   )
+  
   p_plot <- plot_data %>%  
-    ggplot( aes(x = landscape_name, y = Occupancy)) +
-    geom_jitter(color = 'lightgrey', size = 2, width = 0.1, alpha = 0.05) +  
-    geom_boxplot(fill = "#56B4E9", color = "black", width = 0.5, outlier.shape = NA, outlier.size = NA) + 
+    ggplot(aes(x = landscape_name, y = Occupancy)) +
+    # Plot the points with jitterdodge (so they stay behind the boxplot)
+    geom_point(aes(color = OceanYear), size = 2, alpha = 0.05, position = position_jitterdodge(jitter.width = 0.1)) +  # Points with jitter
+    # Plot the boxplots
+    geom_boxplot(aes(fill = OceanYear), color = "black", width = 0.5, outlier.shape = NA, outlier.size = NA) + 
+    # Custom fill colors for OceanYear
+    scale_fill_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + 
+    scale_color_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + # Color points
     theme_classic(base_size = 14) +
-    facet_wrap(~OceanYear) +
-    labs(x = "Increasing landscape fragmentation ->", y = "Occupancy", title = paste("Occupancy in forest points across landscape (P =", target, ")")) +
+    labs(x = "Increasing landscape fragmentation ->", y = "Occupancy", 
+         title = paste("Occupancy in forest points across landscape (P =", target, ")")) +
     theme(
       text = element_text(size = 16, family = "serif"),
       axis.text.x = element_text(angle = 45, hjust = 1),
       axis.title = element_text(size = 14),
       plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
-      legend.position = "none"
+      legend.title = element_blank()#legend.position = "none"  # No legend if you don't want it
     )
+  
   
   # Save occupancy boxplot
   ggsave(paste0("Figures/Occupancy_Boxplot_p", target, ".png"), plot = p_plot, width = 10, height = 6, dpi = 300)
