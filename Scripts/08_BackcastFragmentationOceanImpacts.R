@@ -1,6 +1,8 @@
 # Now for this script we are gonna use the real covariates to predict for all of the sample points that were actually sampled?  
 
 library(terra)
+library(sf)
+library(exactextractr)
 
 model <- readRDS("Models/pc1_interaction_model.rds")
 source('scripts/02_OrganiseMurreletData.R')
@@ -114,18 +116,67 @@ plot(grid_points)
 
 points_within_non_na <- terra::extract(can_cov, grid_points, na.rm = TRUE, xy = TRUE) %>%  
   na.omit() 
-points_within_non_na <- vect(points_within_non_na,geom = c("x", "y"), crs = crs(can_cov))
+points <- vect(points_within_non_na,geom = c("x", "y"), crs = crs(can_cov))
 
 
 plot(can_cov, main = "Raster with 500m Grid Points")
-plot(points_within_non_na, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+plot(points, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 
 #====================================
 #Hab amount 
 #======================================
+#define key paramas####
+buffer_sizes <- c(100, 2000)  # Buffer sizes in meters
+buffer_distances <- c(100, 2000)  # Buffer sizes in meters
 
+# Add IDs to the filtered points
+points$id <- paste0(1:nrow(points))
 
-#Now for each point extract hab amount at 100m at 2000km 
+# Plot the raster and the filtered valid points
+plot(SDM_crop)  # Plot the raster
+plot(points, add = TRUE, col = "red", pch = 16)  # Overlay the filtered points
 
+#convert SDM to binary habitat or non habitat (>.45 threshold)
+habitat_binary <- ifel(SDM_crop >= 45, 1, 0)
+
+#extract habitat amount for different buffers of each point: 
+process_extraction <- function(raster, buffer_distances, points) {
+  habAmount <- list()
+  
+  # Ensure points have unique IDs
+  points$id <- paste0("p", 1:nrow(points))
+  
+  for (buffer_distance in buffer_distances) {
+    # Create buffers around each point and retain IDs
+    buffers <- buffer(points, width = buffer_distance)
+    buffers$id <- points$id  # Retain point IDs in the buffer object
+    
+    # Convert buffers to sf format
+    buffers_sf <- st_as_sf(buffers)
+    
+    # Create an extent polygon from the raster
+    raster_ext <- st_as_sf(st_as_sfc(st_bbox(raster)))
+    
+    # Clip the buffers to the raster extent
+    buffers_clipped <- st_intersection(buffers_sf, raster_ext)
+    
+    # Identify buffer ids that remain (after removing those buffers that didn't intersect)
+    buffer_ids_remaining <- buffers$id[(buffers$id %in% buffers_clipped$id)]
+    
+    # Perform extraction - 'frac' calculates the fraction of each value
+    extraction <- exact_extract(raster, buffers_clipped, 'frac', progress = TRUE)
+    extraction$id <- buffer_ids_remaining  # Add ID back in 
+    
+    # Store results in the list
+    habAmount[[paste0("buffer_", buffer_distance)]] <- extraction
+  }
+  
+  # Collapse the nested list into a long data frame
+  habAmountlong <-  rbindlist(habAmount, idcol = "buffer_size", fill = TRUE) %>% 
+    dplyr::select(buffer_size, frac_0, frac_1, id)
+  
+  return(habAmountlong)
+}
+habAmount <- process_extraction(raster = habitat_binary, buffer_distances = buffer_distances, points)
 
 
