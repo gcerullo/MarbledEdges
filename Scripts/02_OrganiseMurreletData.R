@@ -44,12 +44,12 @@ library(ggcorrplot)
 #save outputs as csvs 
 landscapeVars  <- read.csv("Inputs/LandscapeVariables.csv")
 siteData  <- read.csv("Inputs/siteData.csv")
-surveys  <- read.csv("Inputs/MurreletSurveys.csv") %>% select(-X)
+surveys  <- read.csv("Inputs/MurreletSurveys.csv") %>% dplyr::select(-X) #multipe repeats a some stations
 pointsInRoiAndSamplingWindow  <- read.csv("Inputs/pointsInRoiAndSamplingWindow.csv")
 
 #read in PC1 data
 PC1_all <- read.csv("Outputs/PC1_scaled_inverted.csv") %>%  
-  select(Value_scaled, Year) %>%  #select PC1 which has already been inverted and scaled
+  dplyr::select(Value_scaled, Year) %>%  #dplyr::select PC1 which has already been inverted and scaled
   rename(PC1 = Value_scaled, 
          year = Year) %>%  
   mutate(year_t1 = year +1, 
@@ -57,7 +57,7 @@ PC1_all <- read.csv("Outputs/PC1_scaled_inverted.csv") %>%
                   PC1_t1 = PC1)
 
 #PC1 in prev year
-PC1_t1 <- PC1_all %>% select(year_t1, PC1_t1)
+PC1_t1 <- PC1_all %>% dplyr::select(year_t1, PC1_t1)
 earliest_PC1_year <- PC1_t1 %>%
   filter(year_t1 == min(year_t1)) %>% 
   pull(year_t1)
@@ -75,7 +75,7 @@ analysisSites = siteData %>%
 
 #join site data with murrelet surveys and PC1 
 analysisSurveys = analysisSites %>% 
-  select(id, year) %>% 
+  dplyr::select(id, year) %>% 
   left_join(surveys, by = c('id', 'year')) %>% 
   
   #only keep data for which we have data on PC1 value
@@ -115,7 +115,7 @@ detections %>% count() #915 individual detections from 31,879 surveys
                    sdEdgeArea2000 = sd(analysisSites$edgeArea2000, na.rm=T))
   }
 
-# Standardize selected variables in `analysisSites` (centered and scaled) for later modeling
+# Standardize dplyr::selected variables in `analysisSites` (centered and scaled) for later modeling
 #PC1 has already been scaled in prev script (01)
 analysisSites = analysisSites %>% 
   mutate(scaleCanopy100 = scale(canopy100, center=T, scale=T),
@@ -131,7 +131,7 @@ analysisSites = analysisSites %>%
          scaleEdgeArea2000 = scale(edgeArea2000, center=T, scale=T),
          scaleUtmN = scale(utmN, center=T, scale=T)) %>% 
   arrange(id)%>% 
-  select(-X)
+  dplyr::select(-X)
 
 # Standardize day-of-year variable `doy` in `analysisSurveys`
 # Creates a squared version `scaleDoy2` for non-linear effects in later modeling
@@ -144,23 +144,23 @@ analysisSurveys = analysisSurveys %>%
 y = analysisSurveys %>% 
   pivot_wider(id_cols = id, names_from = survey, values_from = detected) %>% 
   arrange(id) %>% 
-  select(-id)
+  dplyr::select(-id)
 
 # Prepare survey-level covariates for the occupancy model, creating a list of matrices
 surveyCovs = list(
   'scaleDoy' = analysisSurveys %>% 
     pivot_wider(id_cols = id, names_from = survey, values_from = scaleDoy) %>% 
     arrange(id) %>% 
-    select(-id),
+    dplyr::select(-id),
   'scaleDoy2' = analysisSurveys %>% 
     pivot_wider(id_cols = id, names_from = survey, values_from = scaleDoy2) %>% 
     arrange(id) %>% 
-    select(-id)
+    dplyr::select(-id)
 )
 
 # Compute correlation matrix for standardized variables in `analysisSites`
 cor_matrix <- analysisSites %>% 
-  select(scaleCanopy100, scaleConDens100, scaleEdgeDens100, scaleCoastDist, scaleHabAmount100,
+  dplyr::select(scaleCanopy100, scaleConDens100, scaleEdgeDens100, scaleCoastDist, scaleHabAmount100,
          scaleHabAmount2000, scaleEdgeDens2000, scaleEdgeArea100, scaleEdgeArea2000, PC1_t1) %>% 
   cor()
 

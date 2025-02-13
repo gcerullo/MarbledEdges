@@ -54,7 +54,6 @@ dist_model <- occu(
   
 # Step 4: Adding Year as a Factor # this break - cant have year and PC1 in the same model 
 # --------------------------------
-# # Include year as a categorical covariate to account for temporal effects on occupancy.
 # start_time <- Sys.time()
 # year_model <- occu(
 #   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2
@@ -77,7 +76,7 @@ save(list = ls(), file = 'Models/ManuscriptResults.RData')
 start_time <- Sys.time()
 model_with_habitat <- occu(
   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-    PC1_t1 + scaleCoastDist +  + scaleHabAmount100 + scaleEdgeDens100 + scaleHabAmount2000 + scaleEdgeDens2000,
+    PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + scaleHabAmount2000 + scaleEdgeDens2000,
   data = analysisData,
   starts = c(
     coef(dist_model)[1:3],
@@ -136,7 +135,9 @@ pc1_interaction_model <- occu(
 )
 print(Sys.time() - start_time)
 
-#compare model outputs- is PC1 edge interaction better than habitat amount pc1 interaction
+#compare model outputs- is PC1 edge interaction better than if we don't include the interaction 
+model_with_habitat
+pc1_interaction_model
 
 # Save final results
 save(list = ls(), file = 'Models/ManuscriptResults.RData')

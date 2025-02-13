@@ -135,7 +135,7 @@ for (target in production_targets) {
   
   
   # Save occupancy boxplot
-  ggsave(paste0("Figures/Occupancy_Boxplot_p", target, ".png"), plot = p_plot, width = 10, height = 6, dpi = 300)
+  ggsave(paste0("Figures/ForestPoints_Occupancy_Boxplot_p", target, ".png"), plot = p_plot, width = 10, height = 6, dpi = 300)
   
   # Export terra raster plots
   file_names <- basename(sources(landscapes))
@@ -154,8 +154,8 @@ for (target in production_targets) {
   landscape_names <- gsub("\\.tif$", "", landscape_names)  # Remove ".tif"
   
   # Define number of rows and columns
-  num_cols <- 6
-  num_rows <- 1
+  num_cols <- 4
+  num_rows <- 4
   
   # Define output file path
   output_path <- file.path("Figures", paste0("All_Landscapes_", target, ".png"))

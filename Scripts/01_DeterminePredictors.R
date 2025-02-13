@@ -47,6 +47,13 @@ PC1 <- ocean_cond %>% filter( Ecosystem.Indicators == "Principal Component score
   #scale values
   mutate(Value_scaled = scale(Value_inverted))     # Standardize values; Centers the data to a mean of 0 and scales it to a standard deviation of 1.
   
+#Is there a significant change through time of  
+PC1 %>%  ggplot( aes(x = Year, y = Value_scaled)) +
+  geom_point() +  # Scatter plot
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +  # Linear regression line
+  labs(title = "Linear Regression: Year vs PC1_scaled", x = "Year", y = "PC1_scaled") +
+  theme_minimal()
+
 
 PC1_quantiles <-  PC1 %>%
   summarise(

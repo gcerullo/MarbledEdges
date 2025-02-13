@@ -19,15 +19,29 @@ library(tidyverse)
 # library(purrr)
 library(ggplot2)
 
+# List all subfolders (production targets) under the 'Rasters' directory
+production_folders <- list.dirs("Rasters", full.names = TRUE, recursive = FALSE)
+# Filter the folders that start with "production"
+production_folders <- production_folders[grep("^production", basename(production_folders))]
+
+# Loop through each production folder
+for (input_folder in production_folders) {
+  
+  # Skip if the folder is empty or not a valid directory
+  if(length(list.files(input_folder)) == 0) next
+
+  tif_files <- list.files(input_folder, pattern = "\\.tif$", full.names = TRUE)
+  production_target_name <- basename(input_folder)
+
 #KEY DESCISION -------------------------
 
 # Define (uncomment) the folder where the TIFF files are stored - this determines which production target is being explored
 #input_folder <- "Rasters/production_0.55"
 #input_folder <- "Rasters/production_0.24" 
-input_folder <- "Rasters/production_0.58" 
+#input_folder <- "Rasters/production_0.58" 
 # List all TIFF files in the folder (recursive = FALSE to avoid subfolders)
-tif_files <- list.files(input_folder, pattern = "\\.tif$", full.names = TRUE)
-production_target_name <- basename(input_folder)
+#tif_files <- list.files(input_folder, pattern = "\\.tif$", full.names = TRUE)
+#production_target_name <- basename(input_folder)
 #-------------------------------------
 
 #read in final model
@@ -178,7 +192,7 @@ process_all_landscapes <- function(rasters, buffer_distances, points) {
   
   # Loop through each layer in the SpatRaster object
   for (i in 1:nlyr(rasters)) {
-    cat("Processing raster", i, "of", nlyr(rasters), "\n")
+    cat("Processing hab amount raster", i, "of", nlyr(rasters), "\n")
     
     raster <- rasters[[i]]  # Extract individual raster layer
     
@@ -289,7 +303,7 @@ process_all_landscape_edges <- function(rasters, buffer_distances, points) {
   
   # Loop through each layer in the SpatRaster object
   for (i in 1:nlyr(rasters)) {
-    cat("Processing raster", i, "of", nlyr(rasters), "\n")
+    cat("Processing edge density raster", i, "of", nlyr(rasters), "\n")
     
     raster <- rasters[[i]]  # Extract individual raster layer
     
@@ -315,6 +329,7 @@ file_name <- "EdgeDensity10000pts_SimulatedParams.rds"
 file_name <- paste0(production_target_name, "_", file_name)
 saveRDS(all_edges, file.path("Outputs", file_name))
 
+}
 
 #--------------------------------------------------
 #CALCULATE LINEAR EDGE DENSITY ####

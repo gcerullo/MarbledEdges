@@ -307,7 +307,7 @@ total_area <-nrows*ncols #landscaoe is 1Mha and made up of 100m2 pixels
 #Note - if i wanted 1mha made up of 30m^2 cells that would be 3333.33 x 3333.33 cells. 
 #Might want to do this as we are using 100m edge density as a predictor so min cell size may need to be < 100x100
 
-generate_landscape <- function(prop_plantation_cells, total_area, num_steps = 3000, step_size = 500) {
+generate_landscape <- function(prop_plantation_cells, total_area, num_steps = 4000, step_size = 250) {
   # Create an empty list to store the rasters
   raster_list <- list()
   

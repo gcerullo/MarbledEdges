@@ -57,8 +57,6 @@ predict_data <- predict_data %>%
     scaleDoy2 = doy_means$mean_scaleDoy2
   )
 
-#save organised covariates for script 07
-saveRDS(predict_data, "Outputs/ScaledCovariates.rds")
 
 # Step 3: Predict Occupancy with standard errors (for error ribbon)
 predictions <- predict(
@@ -88,9 +86,9 @@ predict_data$OceanYear <- factor(
 # Plot figure with error ribbons ####
 
 # Define a  color palette with muted tones
-nature_palette <- c("Bad Ocean Years" = "#4C4C4C",   # Grey for "Bad" condition
+nature_palette <- c("Bad Ocean Years" = "#D55E00",   # Grey for "Bad" condition
                     #"Neutral Ocean Years" = "#A0A0A0", # Lighter grey for "Neutral"
-                    "Good Ocean Years" = "#1F77B4")   # Muted blue for "Good" condition
+                    "Good Ocean Years" = "#56B4E9")   # Muted blue for "Good" condition
 
 ocean_murrelet_hab_occ <- 
   ggplot(predict_data, aes(x = scaleEdgeDens2000, y = Occupancy, color = OceanYear)) +
@@ -125,6 +123,9 @@ ocean_murrelet_hab_occ <-
   )
 
 #Save outputs #### 
+
+#save organised covariates for script 07
+saveRDS(predict_data, "Outputs/ScaledCovariates.rds")
 # Define the output folder and file name
 output_folder <- "Figures"
 output_file <- file.path(output_folder, "murrelet_occupancy_plot.png")
