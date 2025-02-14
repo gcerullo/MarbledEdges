@@ -93,9 +93,9 @@ plot(can_cov, add = TRUE)  # Overlay the can_cov raster to check alignment
 ownership <- project(ownership, crs_raster)
 #generate 500m grid 
 
-# Define the resolution of the grid (500m x 500m)
-grid_res_x <- 1000  # Resolution in x-direction (500m)
-grid_res_y <- 1000# Resolution in y-direction (500m)
+# Define the resolution of the grid (1000m x 1000m)
+grid_res_x <- 1000  # Resolution in x-direction (1000m)
+grid_res_y <- 1000# Resolution in y-direction (1000m)
 
 # Create a raster grid of 500m resolution over the extent of the original raster
 grid_raster <- rast(nrows = ceiling((ext_raster[4] - ext_raster[3]) / grid_res_y),
@@ -302,24 +302,34 @@ process_extraction_edge <- function(raster, buffer_distances, points) {
 #edgeforesthabitat then 1 = forest in an edge, and ignore 0 
 edgeAmount <- process_extraction_edge(raster = edgeforesthabitat, buffer_distances = buffer_distances, points)
 saveRDS(edgeAmount, "Outputs/PNW_2020_edgeamount.rds")
+
+
+####################################
+######################################
+
+#        ORGANISE COVARIATE DATA 
+
+#####################################
+#####################################
 #====================================
 #organise edge and habitat data ####
 #====================================
 
+habAmount <- readRDS("Outputs/PNW_2020_habAmount.rds")
+
 # Process habitat amount data
-hab_df <- hab %>% rbindlist(idcol = "landscape_name")
-hab_df <- hab_df %>% 
+hab_df <- habAmount %>% 
   pivot_wider(
     names_from = buffer_size, 
     values_from = c(frac_0, frac_1)
   ) %>%    
-  mutate(habAmountDich_100 = frac_0_buffer_1, 
-         habAmountDich_2000 = frac_0_buffer_20,
+  mutate(habAmountDich_100 = frac_0_buffer_100, 
+         habAmountDich_2000 = frac_0_buffer_2000,
          point_id = id) %>% 
-  dplyr::select(landscape_name, point_id, habAmountDich_100, habAmountDich_2000)
+  dplyr::select( point_id, habAmountDich_100, habAmountDich_2000)
 
 # Process edge density data
-edgeAmount <- readRDS("Outputs/PNW_2020_edgeamount_raster.rds")
+edgeAmount <- readRDS("Outputs/PNW_2020_edgeamount.rds")
 
 edge_df <- edgeAmount  %>% 
   pivot_wider(
@@ -331,5 +341,20 @@ edge_df <- edgeAmount  %>%
          point_id = id) %>% 
   dplyr::select(point_id, edgeRook_100_40, edgeRook_2000_40)
 
+
 # Combine habitat and edge data
 all_df <- hab_df %>% left_join(edge_df)
+
+#====================================
+# get distance to coastline ####
+#====================================
+plot(can_cov)
+
+#====================================
+# get ownership ####
+#====================================
+
+
+#====================================
+#finally assembly and scaling of data ####
+#====================================
