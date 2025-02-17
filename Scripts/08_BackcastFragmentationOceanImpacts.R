@@ -4,6 +4,7 @@ library(terra)
 library(sf)
 library(exactextractr)
 library(data.table)
+library(rnaturalearth)
 
 model <- readRDS("Models/pc1_interaction_model.rds")
 source('scripts/02_OrganiseMurreletData.R')
@@ -121,6 +122,8 @@ points_within_non_na <- terra::extract(can_cov, grid_points, na.rm = TRUE, xy = 
   na.omit() 
 points <- vect(points_within_non_na,geom = c("x", "y"), crs = crs(can_cov))
 
+# Add IDs to the filtered points
+points$id <- paste0(1:nrow(points))
 
 plot(can_cov, main = "Raster with 500m Grid Points")
 plot(points, add = TRUE, col = "blue", pch = 16, cex = 0.5)
@@ -132,8 +135,6 @@ plot(points, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 buffer_sizes <- c(100, 2000)  # Buffer sizes in meters
 buffer_distances <- c(100, 2000)  # Buffer sizes in meters
 
-# Add IDs to the filtered points
-points$id <- paste0(1:nrow(points))
 
 # Plot the raster and the filtered valid points
 plot(SDM2019)  # Plot the raster
@@ -315,7 +316,10 @@ saveRDS(edgeAmount, "Outputs/PNW_2020_edgeamount.rds")
 #organise edge and habitat data ####
 #====================================
 
+#read in inputs 
 habAmount <- readRDS("Outputs/PNW_2020_habAmount.rds")
+edgeAmount <- readRDS("Outputs/PNW_2020_edgeamount.rds")
+
 
 # Process habitat amount data
 hab_df <- habAmount %>% 
@@ -323,13 +327,13 @@ hab_df <- habAmount %>%
     names_from = buffer_size, 
     values_from = c(frac_0, frac_1)
   ) %>%    
-  mutate(habAmountDich_100 = frac_0_buffer_100, 
-         habAmountDich_2000 = frac_0_buffer_2000,
+  mutate(habAmountDich_100 = frac_1_buffer_100, 
+         habAmountDich_2000 = frac_1_buffer_2000,
          point_id = id) %>% 
   dplyr::select( point_id, habAmountDich_100, habAmountDich_2000)
 
+hist(hab_df$habAmountDich_100)
 # Process edge density data
-edgeAmount <- readRDS("Outputs/PNW_2020_edgeamount.rds")
 
 edge_df <- edgeAmount  %>% 
   pivot_wider(
@@ -340,21 +344,85 @@ edge_df <- edgeAmount  %>%
          edgeRook_2000_40 = frac_1_buffer_2000,
          point_id = id) %>% 
   dplyr::select(point_id, edgeRook_100_40, edgeRook_2000_40)
-
+hist(edge_df$edgeRook_2000_40)
 
 # Combine habitat and edge data
-all_df <- hab_df %>% left_join(edge_df)
+all_df <- hab_df %>% left_join(edge_df)   
+ 
+
+#Get which points are actually in murrelet habitat 
+point_level_habitat <- terra::extract(SDM2019, points) %>%  
+  rename(point_leve_hab_probability = probability, 
+         point_id = ID) %>%  
+        mutate(point_id = as.character(point_id)) %>% 
+  mutate(point_id =  paste0("p",point_id))
+
+all_df <- all_df %>%left_join(point_level_habitat)
+
 
 #====================================
 # get distance to coastline ####
 #====================================
-plot(can_cov)
+coastline_data <- ne_coastline(scale = 110)  # scale = 110 is for 1:110m resolution
+plot(coastline_data)
+
+
+# Convert the coastline sf object to a terra SpatVector
+coastline_vector <- vect(coastline_data)
+
+# Get the extent of the coastline data
+coastline_extent <- ext(coastline_vector)
+
+# Define the bounding box for North America (Longitude: -170 to -50, Latitude: 24 to 85)
+north_america_bbox <- ext(-170, -50, 24, 85)
+# Define the bounding box for the Pacific Northwest (Longitude: -130 to -116, Latitude: 40 to 50)
+pacific_nw_bbox <- ext(-170, -100, 24, 60)
+
+# Crop the coastline vector to North America
+coastline_vector <- crop(coastline_vector, pacific_nw_bbox)
+plot(coastline_vector)
+
+#reproject coastline to EPSG:5070
+coastline_vector <- project(coastline_vector, "EPSG:5070")
+
+# Plot the coastline vector (in blue)
+plot(coastline_vector, col = "blue", main = "Points Over Coastline")
+
+# Add the points on top of the coastline plot (in red)
+plot(points, add = TRUE, col = "red", pch = 20)
+
+
+# Calculate the distance from each point to the nearest coastline geometry
+distance_to_coastline <- distance(coastline_vector, points)
+
+# Extract the minimum distance (closest distance) for each point from the distance matrix
+closest_distances <- apply(distance_to_coastline, 2, min, na.rm = TRUE)
+
+# Create a data frame with Point ID and Distance to Coastline
+distance_df <- data.frame(
+  point_id = points$id,  
+  distance_to_coastline = closest_distances) %>%  
+  mutate(point_id =  paste0("p",point_id))
+
+d
+distance_df %>% filter(point_id == "p16763")
+all_df %>%  filter(point_id == "p16763")
+#add distance (m) to all_df 
+all_df2 <- all_df %>% left_join(distance_df)
 
 #====================================
 # get ownership ####
 #====================================
+#In the model; #ownership = factor: blm, odf. oregon. washington.
+subpoints <- points[1:10]
+
+ownership <- terra::extract(ownership, points)
+# Extract raster values at the point locations
+extracted_values <- terra::extract(ownership, points)
 
 
+#Get which points are actually in murrelet habitat 
+ownership <- terra::extract(ownership, points)
 #====================================
 #finally assembly and scaling of data ####
 #====================================
