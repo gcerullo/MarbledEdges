@@ -6,9 +6,11 @@ library(exactextractr)
 library(data.table)
 library(rnaturalearth)
 
+#read in inputs ####
 model <- readRDS("Models/pc1_interaction_model.rds")
 source('scripts/02_OrganiseMurreletData.R')
-
+covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%   
+  dplyr::select(PC1_t1, scaleCoastDist, scaleDoy, scaleDoy2, scaleDoy2, OceanYear) %>%  unique()
 #==================================
 #Information on Murrelet survey sites: (Valente 2022)
 #Most surveys were conducted around proposed timber harvest sites with 1 survey station per 8–10 ha.
@@ -52,8 +54,6 @@ plot(can_cov)
 ext_raster <- ext(can_cov)  # Extent of can_cov
 crs_raster <- crs(can_cov)  # CRS of can_cov
 
-# Align the vector to the extent of the raster using crop
-ownership <- crop(ownership, ext_raster)
 #plot(ownership_cropped)
 
 # Step 4: Load the SDM (Species Distribution Model) 2019 raster
@@ -90,8 +90,7 @@ plot(can_cov, add = TRUE)  # Overlay the can_cov raster to check alignment
 #Create stratified points across landscapes
 #-------------------------------------------
 
-# Set the CRS of ownership and grid_points to match canopy_cover's CRS
-ownership <- project(ownership, crs_raster)
+
 #generate 500m grid 
 
 # Define the resolution of the grid (1000m x 1000m)
@@ -187,19 +186,22 @@ saveRDS(habAmount, "Outputs/PNW_2020_habamount.rds")
 #====================================
 #Edge amount 
 #======================================
+#COME BACK TO - THERE IS A CHANCE I AM MISSING NON-FOREST
+
 #Confusion matrix
 #habitat      #open canopy         meaning 
-#   8              5                40 =   habitat that is also open canopy (should be v rare)
+#   8              5                40 =   habitat that is also open canopy (should be v rare/nonexistent)
 #   8              2                16 =   habitat is not in open canopy (ie closed canopy habitat)
 #   4              5                20 =   non-habitat open canopy 
 #   4              2                8 =    non-habitat closed canopy
 
 # identify forest edge cells - which are layers with conifer canopy coverage <= 40%
-open_canopy <- ifel(can_cov_conifer <= 450, 5, 2) #5 is open canopy, 2 is closed canopy
-plot(open_canopy)
+open_canopy <- ifel(can_cov_conifer <= 4500, 5, 2) #5 is open canopy, 2 is closed canopy
+#plot(open_canopy)
 habitat_binary2 <- ifel(SDM2019 >= 45, 8, 4)     #8 is habitat, 4 is non-habitat 
+#plot(habitat_binary2)
 intermediate_raster <- open_canopy * habitat_binary2
-
+#plot(intermediate_raster)
 #take only closed canopy habitat (16) and potential hardedges (20
 # Filter raster: keep only values 16 or 20, set other values to NA
 habitat_and_edge <- intermediate_raster
@@ -219,7 +221,49 @@ processed_cells <- 0
 #----------------------------------------------------------------
 #RUN ONCE - APPROX 2HRS --
 
-# boundary_raster <- focal(habitat_and_edge, w = matrix(c(0, 1, 0, 1, 0, 0, 1, 0, 0), 3, 3), 
+# Set up a global counter for progress tracking
+processed_cells <- 0
+total_cells <- ncell(habitat_and_edge)
+
+
+boundary_raster <- focal(habitat_and_edge,  
+                         w = c(3, 3),  
+                         fun = function(x, ...) {
+                           
+                           # Update processed cell counter
+                           processed_cells <<- processed_cells + 1
+                           if (processed_cells %% 1000 == 0) {
+                             progress <- round((processed_cells / total_cells) * 100, 2)
+                             message("Processing: ", progress, "%")
+                           }
+                           
+                           center_value <- x[5]  # Explicitly extract center, even if NA
+                           
+                           # # Print for debugging
+                           # message("Focal window: ", paste(x, collapse = ", "),
+                           #         " | Center: ", center_value)
+                           
+                           if (is.na(center_value)) {
+                             return(NA)  # Keep NA if the focal cell itself is NA
+                           }
+                           
+                           # Extract NSEW neighbors
+                           neighbors <- x[c(2, 4, 6, 8)]  # N, S, E, W
+                           
+                           # Remove NA neighbors before comparison
+                           valid_neighbors <- neighbors[!is.na(neighbors)]
+                           
+                           # Check if any non-NA neighbor is different
+                           if (any(valid_neighbors != center_value)) {
+                             return(1)  # Boundary cell
+                           } else {
+                             return(0)  # Not a boundary
+                           }
+                         }, pad = TRUE)  # Keep padding enabled
+writeRaster(boundary_raster, "Rasters/v2_intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif")
+
+# OLD VERSION: 
+#boundary_raster <- focal(habitat_and_edge, w = matrix(c(0, 1, 0, 1, 0, 0, 1, 0, 0), 3, 3), 
 #                          fun = function(x, ...) {
 #                            # Update processed cell counter
 #                            processed_cells <<- processed_cells + 1
@@ -251,15 +295,19 @@ processed_cells <- 0
 #----------------------------------------------------------------
 
 #can start here: nb, this shows all pixels where murrelet habitat meets non-habitat 
-boundary_raster <- rast("Rasters/intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif")
+boundary_raster <- rast("Rasters/v2_intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif")
 plot(boundary_raster)
+terra::freq(boundary_raster)
+
 #filters to only murrelet habitat that meets an edge
 edgeforesthabitat <- boundary_raster*habitat_binary
 
 plot(habitat_binary)
-plot(edgeforesthabitat)
-terra::freq(edgeforesthabitat)
+plot(edgeforesthabitat) 
+terra::freq(habitat_binary)  #35,735,491 cells of habitat 
 
+terra::freq(edgeforesthabitat) # 1085544 cells of habitat that meet an edge  
+1085544/35735491  # 3 of all  cells are an edge - definitely wrong!!
 #now take only boundary cells that are in murrelet habitat 
 process_extraction_edge <- function(raster, buffer_distances, points) {
   edgeAmount <- list()
@@ -302,7 +350,7 @@ process_extraction_edge <- function(raster, buffer_distances, points) {
 
 #edgeforesthabitat then 1 = forest in an edge, and ignore 0 
 edgeAmount <- process_extraction_edge(raster = edgeforesthabitat, buffer_distances = buffer_distances, points)
-saveRDS(edgeAmount, "Outputs/PNW_2020_edgeamount.rds")
+saveRDS(edgeAmount, "Outputs/v2_PNW_2020_edgeamount.rds")
 
 
 ####################################
@@ -318,7 +366,7 @@ saveRDS(edgeAmount, "Outputs/PNW_2020_edgeamount.rds")
 
 #read in inputs 
 habAmount <- readRDS("Outputs/PNW_2020_habAmount.rds")
-edgeAmount <- readRDS("Outputs/PNW_2020_edgeamount.rds")
+edgeAmount <- readRDS("Outputs/v2_PNW_2020_edgeamount.rds")
 
 
 # Process habitat amount data
@@ -359,6 +407,9 @@ point_level_habitat <- terra::extract(SDM2019, points) %>%
 
 all_df <- all_df %>%left_join(point_level_habitat)
 
+#average edge in good habitat
+all_df %>% filter(point_leve_hab_probability >=45) %>%  
+  summarise(meanEdge = mean(edgeRook_2000_40))
 
 #====================================
 # get distance to coastline ####
@@ -404,25 +455,93 @@ distance_df <- data.frame(
   distance_to_coastline = closest_distances) %>%  
   mutate(point_id =  paste0("p",point_id))
 
-d
-distance_df %>% filter(point_id == "p16763")
-all_df %>%  filter(point_id == "p16763")
+
 #add distance (m) to all_df 
-all_df2 <- all_df %>% left_join(distance_df)
+all_df <- all_df %>% left_join(distance_df)
 
 #====================================
 # get ownership ####
 #====================================
+#In the valente paper, ownership is a data source covariate to account for potential detection heterogeneity introduced by local land management practices. 
 #In the model; #ownership = factor: blm, odf. oregon. washington.
-subpoints <- points[1:10]
+ownership
+summary(ownership)
 
-ownership <- terra::extract(ownership, points)
-# Extract raster values at the point locations
-extracted_values <- terra::extract(ownership, points)
+#If we want, we can extract the actual ownership information for each point, tho we don't need this for our models 
+unique(ownership$Own_simple)
 
 
-#Get which points are actually in murrelet habitat 
-ownership <- terra::extract(ownership, points)
+#.........................
+#Run once ####
+#match pt crs to ownership (faster than reproject the massive shapefile)
+#points_pj <- project(points, crs(ownership))
+#ownership_data <- terra::extract(ownership, points_pj)
+#saveRDS(ownership_data, "Outputs/ownership_random_points_pnw.rds")
+#.........................
+
+
 #====================================
 #finally assembly and scaling of data ####
 #====================================
+ownership_data <- readRDS("Outputs/ownership_random_points_pnw.rds") %>%  
+  mutate(point_id =  paste0("p",id.y)) %>% 
+  select(-id.y)
+
+all_df <- all_df %>% left_join(ownership_data)
+
+
+#what proportion of murrelet habitat is edgey? 
+all_df %>% 
+  filter(point_leve_hab_probability >= 45) %>%  
+  summarise(median_edge2000 = mean(edgeRook_2000_40))
+
+final2020 <- all_df
+
+saveRDS(final2020, "PNW_2020_extracted_covars.rds")
+#---------------------------------------
+#predict current occupancy for PNW 
+
+#function for processing and predicting over dataset ####
+
+prep_and_predict <- function(x){
+# Prepare data for prediction with scaled covariates
+prediction_df <- x %>% mutate(
+  scaleHabAmount100 = scale(habAmountDich_100), 
+  scaleHabAmount2000 = scale(habAmountDich_2000), 
+  scaleEdgeDens100 = scale(edgeRook_100_40), 
+  scaleEdgeDens2000 = scale(edgeRook_2000_40)) %>%  
+  dplyr::select(point_id, scaleHabAmount100, scaleHabAmount2000, scaleEdgeDens100, scaleEdgeDens2000) %>% 
+  cross_join(covariates)
+
+# Predict occupancy with standard errors (for error ribbon)
+predictions <- predict(
+  model,  
+  newdata = prediction_df,
+  type = "state", 
+  se.fit = TRUE  # Obtain standard errors for predictions
+) %>% 
+  rename(Occupancy = Predicted)
+
+# Add predicted occupancy and standard errors to the data
+prediction_df <- prediction_df %>% cbind(predictions) %>%  
+  mutate(lower_CI = Occupancy - 1.96 * SE, 
+         upr_CI = Occupancy + 1.96 * SE )
+
+#add back in other info on ownership and SDM model 
+add_data_back <- x %>%  
+  select(point_id, point_leve_hab_probability, Own_simple)
+
+prediction_df <- prediction_df %>%  left_join(add_data_back)
+
+return(prediction_df)
+}
+
+
+#compute predictions for baseline year 
+predict2020 <- prep_and_predict(final2020)
+
+
+#get average occ for forest hab 
+predict2020 %>% filter(point_leve_hab_probability >= 0.45) %>%
+  group_by(OceanYear) %>% 
+  summarise(median(Occupancy))
