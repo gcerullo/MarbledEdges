@@ -54,6 +54,7 @@ PC1 %>%  ggplot( aes(x = Year, y = Value_scaled)) +
   labs(title = "Linear Regression: Year vs PC1_scaled", x = "Year", y = "PC1_scaled") +
   theme_minimal()
 
+min(PC1$Value_scaled)
 
 PC1_quantiles <-  PC1 %>%
   summarise(

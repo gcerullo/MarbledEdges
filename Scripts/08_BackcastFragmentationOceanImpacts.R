@@ -9,8 +9,7 @@ library(rnaturalearth)
 #read in inputs ####
 model <- readRDS("Models/pc1_interaction_model.rds")
 source('scripts/02_OrganiseMurreletData.R')
-covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%   
-  dplyr::select(PC1_t1, scaleCoastDist, scaleDoy, scaleDoy2, scaleDoy2, OceanYear) %>%  unique()
+
 #==================================
 #Information on Murrelet survey sites: (Valente 2022)
 #Most surveys were conducted around proposed timber harvest sites with 1 survey station per 8–10 ha.
@@ -498,50 +497,3 @@ all_df %>%
 final2020 <- all_df
 
 saveRDS(final2020, "PNW_2020_extracted_covars.rds")
-#---------------------------------------
-#predict current occupancy for PNW 
-
-#function for processing and predicting over dataset ####
-
-prep_and_predict <- function(x){
-# Prepare data for prediction with scaled covariates
-prediction_df <- x %>% mutate(
-  scaleHabAmount100 = scale(habAmountDich_100), 
-  scaleHabAmount2000 = scale(habAmountDich_2000), 
-  scaleEdgeDens100 = scale(edgeRook_100_40), 
-  scaleEdgeDens2000 = scale(edgeRook_2000_40)) %>%  
-  dplyr::select(point_id, scaleHabAmount100, scaleHabAmount2000, scaleEdgeDens100, scaleEdgeDens2000) %>% 
-  cross_join(covariates)
-
-# Predict occupancy with standard errors (for error ribbon)
-predictions <- predict(
-  model,  
-  newdata = prediction_df,
-  type = "state", 
-  se.fit = TRUE  # Obtain standard errors for predictions
-) %>% 
-  rename(Occupancy = Predicted)
-
-# Add predicted occupancy and standard errors to the data
-prediction_df <- prediction_df %>% cbind(predictions) %>%  
-  mutate(lower_CI = Occupancy - 1.96 * SE, 
-         upr_CI = Occupancy + 1.96 * SE )
-
-#add back in other info on ownership and SDM model 
-add_data_back <- x %>%  
-  select(point_id, point_leve_hab_probability, Own_simple)
-
-prediction_df <- prediction_df %>%  left_join(add_data_back)
-
-return(prediction_df)
-}
-
-
-#compute predictions for baseline year 
-predict2020 <- prep_and_predict(final2020)
-
-
-#get average occ for forest hab 
-predict2020 %>% filter(point_leve_hab_probability >= 0.45) %>%
-  group_by(OceanYear) %>% 
-  summarise(median(Occupancy))
