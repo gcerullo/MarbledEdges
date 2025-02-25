@@ -93,8 +93,8 @@ plot(can_cov, add = TRUE)  # Overlay the can_cov raster to check alignment
 #generate 500m grid 
 
 # Define the resolution of the grid (1000m x 1000m)
-grid_res_x <- 1000  # Resolution in x-direction (1000m)
-grid_res_y <- 1000# Resolution in y-direction (1000m)
+grid_res_x <- 500  # Resolution in x-direction (1000m)
+grid_res_y <- 500# Resolution in y-direction (1000m)
 
 # Create a raster grid of 500m resolution over the extent of the original raster
 grid_raster <- rast(nrows = ceiling((ext_raster[4] - ext_raster[3]) / grid_res_y),
@@ -112,13 +112,17 @@ grid_vect <- as.polygons(grid_raster)
 grid_points <- centroids(grid_vect)
 
 # Plot the original raster and overlay the grid points
-plot(can_cov, main = "Raster with 500m Grid Points")
-plot(grid_points, add = TRUE, col = "blue", pch = 16, cex = 0.5)
-plot(grid_points)
+plot(can_cov, main = "Raster with 500 Grid Points")
+#plot(grid_points, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+#plot(grid_points)
+
 
 points_within_non_na <- terra::extract(can_cov, grid_points, na.rm = TRUE, xy = TRUE) %>%  
   na.omit() 
 points <- vect(points_within_non_na,geom = c("x", "y"), crs = crs(can_cov))
+
+#get a binary raster of murrelet habitat
+
 
 # Add IDs to the filtered points
 points$id <- paste0(1:nrow(points))
@@ -218,7 +222,6 @@ freq_table <- terra::freq(habitat_and_edge)
 processed_cells <- 0
 
 #----------------------------------------------------------------
-#RUN ONCE - APPROX 2HRS --
 
 # Set up a global counter for progress tracking
 processed_cells <- 0
@@ -259,7 +262,7 @@ boundary_raster <- focal(habitat_and_edge,
                              return(0)  # Not a boundary
                            }
                          }, pad = TRUE)  # Keep padding enabled
-writeRaster(boundary_raster, "Rasters/v2_intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif")
+# writeRaster(boundary_raster, "Rasters/v2_intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif",overwrite=TRUE)
 
 # OLD VERSION: 
 #boundary_raster <- focal(habitat_and_edge, w = matrix(c(0, 1, 0, 1, 0, 0, 1, 0, 0), 3, 3), 
@@ -306,7 +309,7 @@ plot(edgeforesthabitat)
 terra::freq(habitat_binary)  #35,735,491 cells of habitat 
 
 terra::freq(edgeforesthabitat) # 1085544 cells of habitat that meet an edge  
-1085544/35735491  # 3 of all  cells are an edge - definitely wrong!!
+1085544/35735491 
 #now take only boundary cells that are in murrelet habitat 
 process_extraction_edge <- function(raster, buffer_distances, points) {
   edgeAmount <- list()
@@ -441,7 +444,6 @@ plot(coastline_vector, col = "blue", main = "Points Over Coastline")
 # Add the points on top of the coastline plot (in red)
 plot(points, add = TRUE, col = "red", pch = 20)
 
-
 # Calculate the distance from each point to the nearest coastline geometry
 distance_to_coastline <- distance(coastline_vector, points)
 
@@ -471,20 +473,40 @@ unique(ownership$Own_simple)
 
 
 #.........................
-#Run once ####
-#match pt crs to ownership (faster than reproject the massive shapefile)
-#points_pj <- project(points, crs(ownership))
-#ownership_data <- terra::extract(ownership, points_pj)
-#saveRDS(ownership_data, "Outputs/ownership_random_points_pnw.rds")
-#.........................
+
+
+# Set the raster resolution (to rasterise shapefile)
+resolution <- 30  # Set a suitable resolution for your analysis
+# Create an empty raster template with the same extent and CRS as your SpatVector
+unique(ownership$Own_simple)
+ownership_raster_template <- terra::rast(ownership,
+                                         resolution = resolution)
+# Rasterize the polygon layer
+ownership_raster <- terra::rasterize(ownership, ownership_raster_template, field = "Own_simple")
+ownership_raster_pj <- terra::project(ownership_raster, crs_raster) #match crs
+# Resample ownership_raster to match the resolution of can_cov
+ownership_raster_resampled <- terra::resample(ownership_raster_pj, can_cov, method = "near")
+plot(ownership_raster_resampled)
+#now extract the points 
+extracted_ownership_values <- terra::extract(ownership_raster_resampled, points, bind = TRUE) %>% 
+  as.data.frame() %>% 
+  select(id, Own_simple) %>% 
+  rename(ownership = Own_simple)
+saveRDS(extracted_ownership_values, "Outputs/ownership_random_points_pnw.rds")
+
+## The slow v accurate way:
+## #match pt crs to ownership (faster than reproject the massive shapefile)
+## points_pj <- project(points, crs(ownership))
+## ownership_data <- terra::extract(ownership, points_pj)
+## saveRDS(ownership_data, "Outputs/ownership_random_points_pnw.rds")
+## .........................
 
 
 #====================================
 #finally assembly and scaling of data ####
 #====================================
 ownership_data <- readRDS("Outputs/ownership_random_points_pnw.rds") %>%  
-  mutate(point_id =  paste0("p",id.y)) %>% 
-  select(-id.y)
+  mutate(point_id =  paste0("p",id)) 
 
 all_df <- all_df %>% left_join(ownership_data)
 

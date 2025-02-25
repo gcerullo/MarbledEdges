@@ -7,8 +7,6 @@ library(data.table)
 library(tidyverse)
 library(mgcv)
 
-
-
 # read in inputs #####
 covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%   
   dplyr::select(PC1_t1, scaleDoy, scaleDoy2, scaleDoy2, OceanYear) %>%  unique() %>%  
@@ -20,7 +18,9 @@ covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%
 
 model <- readRDS("Models/pc1_interaction_model.rds")
 final2020 <- readRDS("PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8
-as.data.frame() 
+as.data.frame() %>%  
+  #only keep points with an SDM value
+filter(!is.na(point_leve_hab_probability))
 
 #----------------------------------
 #functions ####
@@ -28,6 +28,7 @@ as.data.frame()
 
 #function for scaling data and making model predictions dataset ####
 prep_and_predict <- function(x){
+  
   # Prepare data for prediction with scaled covariates
   prediction_df <- x %>% mutate(
     scaleHabAmount100 = scale(habAmountDich_100), 
@@ -54,71 +55,32 @@ prep_and_predict <- function(x){
   
   #add back in other info on ownership and SDM model 
   add_data_back <- x %>%  
-    select(point_id, point_leve_hab_probability, Own_simple,distance_to_coastline) %>% unique()
+    select(point_id, point_leve_hab_probability, ownership,distance_to_coastline) %>% unique()
   
   prediction_df <- prediction_df %>%  left_join(add_data_back)
   
   return(prediction_df)
 }
+
 #=================================================
-#predict baseline data for yr 2020 
+#explore relationship between habitat amount and edge density
 #=================================================
-#compute predictions for baseline year 
-#predict2020 <- prep_and_predict(final2020)
-
-#plot of starting occupancy
-
-#quick plot: 
-# 
-# #BOXPLOTS
-#  predict2020 %>%
-#   filter(point_leve_hab_probability >= 45 &
-#            distance_to_coastline >88000) %>%  
-#    ggplot( aes(x = as.factor(OceanYear), y = Occupancy)) +
-#   geom_boxplot(fill = "lightblue", color = "black") +  # Boxplot with custom colors
-#   theme_classic(base_size = 14) +  # Nature-style theme
-#   labs(
-#     x = "Ocean Year",  # Label for x-axis
-#     y = "Occupancy",   # Label for y-axis
-#     title = "Boxplot of Occupancy by Ocean Year"
-#   ) +
-#   theme(
-#     axis.text = element_text(size = 12),
-#     axis.title = element_text(size = 14, face = "bold"),
-#     plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
-#     panel.grid.major = element_blank(),
-#     panel.grid.minor = element_blank()
-#   )
-#####################
-#Develop scenarios 
-######################
- 
- #FIX HABITAT - what about private/non-private lands? 
- # Scenario	    Fragmentation	     Habitat Change	      Ocean Conditions
- # A1	         ⬆ Increased	        🚫 Fixed            	🌊 Same
- # A2	         ⬇ Reduced          	🚫 Fixed             🌊 Same
- # A1D2	       ⬆ Increased	        🚫 Fixed           	🌊 Much Worse
- # A2D2	       ⬇ Reduced	          🚫 Fixed           	🌊 Much Worse
- 
- #VARY 2km habitat 
- # B1	         ⬆ Increased	       ⬇ Linear Loss	       🌊 Same
- # B2	         ⬆ Increased	       ⬇ Quadratic Loss     	🌊 Same
-
- # B1D2	        ⬆ Increased	         ⬇ Linear Loss	     🌊 Much Worse
- # B2D2	       ⬆ Increased	         ⬇ Quadratic Loss	  🌊 Much Worse
-
- #develop future scenarios 
- #Increased fragmentation - habitat fixed
- #reduced fragmentation - habitat fixed 
- 
- #increased fragmentation - habitat reduction (linear or quadratic)
- #increased fragmentation - habitat increase (linear or quadratic)
- 
- #ocean conditions same 
- #ocean conditions much worse 
-
-#add different amounts of percentage increase in fragmentation from current (with no change in habitat loss)
 hab_points <- final2020 %>% filter(point_leve_hab_probability >=45)
+#Viualise currently across PNW what the relationship at 2km2 is between habitat amount and edge density
+hab_points  %>%
+  ggplot( aes(x = habAmountDich_2000, y = edgeRook_2000_40)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "loess", span = 0.75, se = FALSE, color = "blue") +
+  labs(title = "Relationship Between Total Habitat and Edge Density",
+       y = "Total Habitat (2km buffer)",
+       x = "Proportion of Habitat as Edge (2km buffer") +
+  theme_minimal()
+
+#=================================================
+#predict scenarios of future fragmentation amount
+#=================================================
+#add different amounts of percentage increase in fragmentation from current (with no change in habitat loss)
+
 percent_change <- data.frame(percent_change = c(0, 0.25, 0.5,0.75,1))
 hab_points_fragmentation <- hab_points %>% cross_join(percent_change) %>%  
   mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change))
@@ -132,29 +94,67 @@ habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
 #asssume fragmentation increases quadratically with decline habitat loss (see example figure below)
 hab_points_fragmentation_quadratic_hab_loss <- hab_points %>% cross_join(percent_change) %>%  
   mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change^2), 
-         # #hab amount declines linearly with increasing fragmentation
+         # #hab amount declines linearly 
          habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
 
+#assume fragmentation increases in roughly n-shape with declining habitat area 
 #Example of what a quadratic change in edge area looks like with declining habitat 
-# Data generation
+hab_points_fragmentation_nShape_hab_loss <- hab_points %>% cross_join(percent_change) %>%
+  mutate(
+    edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40 * (percent_change - percent_change^2)),
+    # #hab amount declines linearly 
+    habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change)
+    )
+
+#COME BACK TO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#example run through - is this working how I expect...Or would a decline in habit from 100% to 75% currently 
+# make the same edge area as a decline from 50% to 25% (ie not considering starting context appropriately)
+x = 1 # select a given row of data
+print(percent_change)
+y =2 #select a percentage change row
+hab_points$edgeRook_2000_40[x]#edge amount
+hab_points$habAmountDich_2000[x]#hab amount
+
+edgeRook_2000_40_test = hab_points$edgeRook_2000_40[x] + (hab_points$edgeRook_2000_40[x] * (percent_change$percent_change[y] - percent_change$percent_change[y]^2))
+print(edgeRook_2000_40_test)
+# #hab amount declines linearly 
+habAmountDich_2000_test = hab_points$habAmountDich_2000[x] - (hab_points$habAmountDich_2000[x]*percent_change$percent_change[y])
+print(habAmountDich_2000_test)
+
+#Visualise different fragmentation and hab amount relationships
+
+#non-linear quadratic effect
 percent_change_test <- seq(0, 1, length.out = 100)
 habitat_amount <- 1 - percent_change_test
 edge_area <- percent_change_test^2
-ggplot(data.frame(percent_change, habitat_amount, edge_area), aes(x = percent_change)) +
+ggplot(data.frame(percent_change_test, habitat_amount, edge_area), aes(x = percent_change_test)) +
   geom_line(aes(y = habitat_amount, color = "Habitat Amount"), size = 1) +
   geom_line(aes(y = edge_area, color = "Edge Area"), size = 1, linetype = "dashed") +
   labs(x = "Percent Change", y = "Amount", title = "Quadratic Relationship Between Habitat Amount and Edge Area") +
   scale_color_manual(values = c("Habitat Amount" = "blue", "Edge Area" = "red")) +
   theme_minimal() +
   theme(legend.title = element_blank(), legend.position = "top")
-hab_points_fragmentation_quadratic_hab_loss <- hab_points %>% cross_join(percent_change) %>%  
-  mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change), 
-         # #hab amount declines linearly with increasing fragmentation
-         habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
+
+# quadratic inverted U-shaped relationship
+habitat_amount <- 1 - percent_change_test  # Linear habitat loss
+edge_area <- percent_change_test - percent_change_test^2  # Inverted U-shape for edge area
+
+# Create a dataframe
+data_plot <- data.frame(percent_change = percent_change_test, 
+                        habitat_amount = habitat_amount, 
+                        edge_area = edge_area)
+
+# Plot the relationships
+ggplot(data_plot, aes(x = percent_change)) +
+  geom_line(aes(y = habitat_amount, color = "Habitat Amount"), size = 1) +
+  geom_line(aes(y = edge_area, color = "Edge Area"), size = 1, linetype = "dashed") +
+  labs(x = "Percent Change", y = "Amount", title = "Inverted U-Shaped Relationship Between Habitat Amount and Edge Area") +
+  scale_color_manual(values = c("Habitat Amount" = "blue", "Edge Area" = "red")) +
+  theme_minimal() +
+  theme(legend.title = element_blank(), legend.position = "top")
 
 
-
- 
+#==========================================================
 #plot figures for different assumptions of habitat loss, fragmentation and ocean, by ownership 
 
 interacting_plots <- function(x){
@@ -169,7 +169,7 @@ mutate(coast_categorical = case_when(
 
 #BOXPLOTS
 frag_df %>%
-  filter(Own_simple %in% c("Federal", "Private Industrial", "Private Non-industrial")) %>% 
+  filter(ownership %in% c("Federal", "Private Industrial", "Private Non-industrial")) %>% 
   group_by(percent_change) %>% 
   ggplot(aes(x = as.factor(percent_change), y = Occupancy, fill = as.factor(OceanYear))) + 
   geom_boxplot(color = "black") +  # Boxplot with black outline
@@ -182,7 +182,7 @@ frag_df %>%
     x = "Proportion increase in future fragmentation per 2km",  # Label for x-axis
     y = "Occupancy"   # Label for y-axis
   ) +
-  facet_wrap(coast_categorical~ Own_simple) +  # Customize facet labels
+  facet_wrap(coast_categorical~ ownership) +  # Customize facet labels
   theme(
     axis.text = element_text(size = 12),
     axis.title = element_text(size = 14, face = "bold"),
@@ -202,12 +202,14 @@ frag_df %>%
 frag_only <- prep_and_predict(hab_points_fragmentation) #just fragmentation
 frag_linear_loss <-  prep_and_predict(hab_points_fragmentation_linear_hab_loss) #fragmentation and linear loss of 2km habitat 
 frag_quadratic_loss <-  prep_and_predict(hab_points_fragmentation_quadratic_hab_loss) #2km hab loss and quadratic incease in edges
-
+frag_nShaped_loss <-  prep_and_predict(hab_points_fragmentation_nShape_hab_loss) #2km hab loss and nshaped incease in edges
 
 #build plots 
 frag_only_plot <- interacting_plots(frag_only)
 frag_linear_loss_plot <-interacting_plots(frag_linear_loss)
 frag_quadratic_loss_plot <- interacting_plots(frag_quadratic_loss)
+frag_nShaped_loss_plot <- interacting_plots(frag_nShaped_loss)
+
 
 #save figures
 
@@ -245,32 +247,40 @@ ggsave(
   device = "png",                       # Output format
   bg = "white"                          # Set background to white
 )
+
+ggsave(
+  filename = "Figures/forescasted_nShaped_frag_with__2km_hab_loss_plot.png",               # File path and name
+  plot = frag_nShaped_loss_plot,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
 # 
+#
+
+
+# #Viualise currently across PNW what the relationship at 2km2 is between habitat amount and edge density
+#  hab_points  %>%
+#    ggplot( aes(x = habAmountDich_2000, y = edgeRook_2000_40)) +
+#    geom_point(size = 3) +
+#    geom_smooth(method = "loess", span = 0.75, se = FALSE, color = "blue") +
+#    labs(title = "Relationship Between Total Habitat and Edge Density",
+#         x = "Total Habitat (2km buffer)",
+#         y = "Proportion of Habitat as Edge (2km buffer") +
+#  theme_minimal()
 # 
-# 
-# 
-# 
-# 
-#                    
-# final2020 %>%
-#   ggplot( aes(x = habAmountDich_2000, y = edgeRook_2000_40)) +
-#   geom_point(size = 3) +
-#   geom_smooth(method = "loess", span = 0.75, se = FALSE, color = "blue") +
-#   labs(title = "Relationship Between Total Habitat and Edge Density",
-#        x = "Total Habitat (2km buffer)",
-#        y = "Proportion of Habitat as Edge (2km buffer") +
-#   theme_minimal()
-#  
-# poly_model <- lm(habAmountDich_2000 ~ poly(edgeRook_2000_40, 2), data = final2020)
-# summary(poly_model)
-# 
+# # 
 # gam_model <- gam(edgeRook_2000_40 ~ s(habAmountDich_2000), data = hab_points)
-# summary(gam_model)
+# summary(gam_model) #habitat amount explains about 11.9% of edge density; so there's a lot more that's important
 # plot(gam_model, shade = TRUE, rug = TRUE, main = "GAM Fit: Habitat Amount vs. Edge Density")
-# 
-# # Create prediction data
-# pred_data <- data.frame(habAmountDich_2000 = seq(min(final2020$habAmountDich_2000),
-#                                                max(final2020$habAmountDich_2000),
+# # 
+# # # Create prediction data
+# pred_data <- data.frame(habAmountDich_2000 = seq(min(hab_points$habAmountDich_2000),
+#                                                max(hab_points$habAmountDich_2000),
 #                                                length.out = 200))
 # # Predict with confidence intervals
 # pred_data$edgeRook_2000_40 <- predict(gam_model, newdata = pred_data, se.fit = TRUE)
@@ -291,25 +301,16 @@ ggsave(
 # # Scatterplot + GAM fitted curve with confidence intervals
 # ggplot(hab_points, aes(x = habAmountDich_2000, y = edgeRook_2000_40)) +
 #   geom_point(alpha = 0.2) +  # Raw data points
-#   geom_smooth(method = "loess", span = 0.75, se = TRUE, color = "blue") +
-#   labs(title = "GAM Fit with Confidence Intervals: Habitat Amount vs. Edge Density",
-#        x = "Habitat Amount (habAmountDich_2000)",
-#        y = "Edge Density (edgeRook_2000_40)") +
-#   theme_minimal()
-# 
-# # Scatterplot + GAM fitted curve with confidence intervals
-# ggplot(final2020, aes(x = habAmountDich_2000, y = edgeRook_2000_40)) +
-#   geom_point(alpha = 0.2) +  # Raw data points
-#   geom_line(data = pred_data, aes(x = habAmountDich_2000, y = edgeRook_2000_40), 
+#   geom_line(data = pred_data, aes(x = habAmountDich_2000, y = edgeRook_2000_40),
 #             color = "blue", size = 1.2) +  # GAM fit
-#   geom_ribbon(data = pred_data, aes(x = habAmountDich_2000, 
-#                                     ymin = fit_lower, ymax = fit_upper), 
+#   geom_ribbon(data = pred_data, aes(x = habAmountDich_2000,
+#                                     ymin = fit_lower, ymax = fit_upper),
 #               fill = "blue", alpha = 0.2) +  # Confidence intervals
 #   labs(title = "GAM Fit with Confidence Intervals: Habitat Amount vs. Edge Density",
 #        x = "Habitat Amount (habAmountDich_2000)",
 #        y = "Edge Density (edgeRook_2000_40)") +
 #   theme_minimal()
-# 
+
 # 
 #  
 #  # FROM VALENTE
