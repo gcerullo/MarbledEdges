@@ -76,12 +76,21 @@ hab_points  %>%
        x = "Proportion of Habitat as Edge (2km buffer") +
   theme_minimal()
 
+# Fit the loess model
+loess_model <- loess(edgeRook_2000_40 ~ habAmountDich_2000, data = hab_points, span = 0.75)
+
+# Create a dataframe with smoothed values
+loess_edge_amount <- data.frame(
+  habAmountDich_2000 = hab_points$habAmountDich_2000,
+  loess_edge_amount = predict(loess_model)
+)
+
 #=================================================
 #predict scenarios of future fragmentation amount
 #=================================================
 #add different amounts of percentage increase in fragmentation from current (with no change in habitat loss)
 
-percent_change <- data.frame(percent_change = c(0, 0.25, 0.5,0.75,1))
+percent_change <- data.frame(percent_change = c(0, 0.1,0.2,0.3,0.4,0.5))
 hab_points_fragmentation <- hab_points %>% cross_join(percent_change) %>%  
   mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change))
          
@@ -105,21 +114,50 @@ hab_points_fragmentation_nShape_hab_loss <- hab_points %>% cross_join(percent_ch
     # #hab amount declines linearly 
     habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change)
     )
+hist(hab_points_fragmentation_nShape_loess_hab_loss$edgeRook_2000_40, breaks = 100)
 
-#COME BACK TO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#assume fragmentation increases in loess-derived n-shape with declining habitat area
+#here instead we use the loess n-shape of hab amount to edge amount from actually murrelet habitat to modify 
+#edge amount directly. We: 
+#1 Moidfy habitat amount using percentage 
+#2. For the specific habitat amount left after, we calculate edge amount based on the loess curve shape 
+#. We do this by joining loess_derived edge amount to habitat_amount (based ona rolling join, where we join to the closest habitat amount we have a loess value for)
+hab_points_percent <- hab_points %>% cross_join(percent_change) %>%  
+  mutate(habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
+hist(hab_points_percent$habAmountDich_2000, breaks = 100)  
+# Convert data frames to data.table and perform rolling join
+hab_points_fragmentation_nShape_loess_hab_loss <- setDT(loess_edge_amount)[setDT(hab_points_percent),
+                                                                           on = .(habAmountDich_2000), roll = "nearest", mult = "first"] %>%  
+  as.data.frame() %>%  
+  select(-edgeRook_2000_40) %>% # remove actual edgeRook_2000_40 - we replace with loess derived estimates 
+  rename( edgeRook_2000_40 = loess_edge_amount)
+
+
+##############
+################
+#COME BACK TO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Logic test
+
+#WRONG - if you lose 100% of your habitat (percentage change =1), the edge amount stays the same! 
+
 #example run through - is this working how I expect...Or would a decline in habit from 100% to 75% currently 
 # make the same edge area as a decline from 50% to 25% (ie not considering starting context appropriately)
-x = 1 # select a given row of data
-print(percent_change)
-y =2 #select a percentage change row
-hab_points$edgeRook_2000_40[x]#edge amount
-hab_points$habAmountDich_2000[x]#hab amount
+# Create the final dataframe directly
+test_df <- expand_grid(
+  edgeRook_2000_40 = seq(0, 1, by = 0.01),
+  habAmountDich_2000 = seq(0, 1, by = 0.1),
+  percent_change = seq(0, 1, by = 0.2)
+)
 
-edgeRook_2000_40_test = hab_points$edgeRook_2000_40[x] + (hab_points$edgeRook_2000_40[x] * (percent_change$percent_change[y] - percent_change$percent_change[y]^2))
-print(edgeRook_2000_40_test)
-# #hab amount declines linearly 
-habAmountDich_2000_test = hab_points$habAmountDich_2000[x] - (hab_points$habAmountDich_2000[x]*percent_change$percent_change[y])
-print(habAmountDich_2000_test)
+test_df2 <- test_df %>%  
+  mutate( # #hab amount declines linearly 
+    v2_habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change),
+    v2_edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40 * (percent_change - percent_change^2))
+  )
+
+##############
+################
+
+
 
 #Visualise different fragmentation and hab amount relationships
 
@@ -203,13 +241,73 @@ frag_only <- prep_and_predict(hab_points_fragmentation) #just fragmentation
 frag_linear_loss <-  prep_and_predict(hab_points_fragmentation_linear_hab_loss) #fragmentation and linear loss of 2km habitat 
 frag_quadratic_loss <-  prep_and_predict(hab_points_fragmentation_quadratic_hab_loss) #2km hab loss and quadratic incease in edges
 frag_nShaped_loss <-  prep_and_predict(hab_points_fragmentation_nShape_hab_loss) #2km hab loss and nshaped incease in edges
+frag_nShapedLoess_loss <-  prep_and_predict(hab_points_fragmentation_nShape_loess_hab_loss) #2km hab loss and nshaped incease in edges
 
 #build plots 
 frag_only_plot <- interacting_plots(frag_only)
 frag_linear_loss_plot <-interacting_plots(frag_linear_loss)
 frag_quadratic_loss_plot <- interacting_plots(frag_quadratic_loss)
 frag_nShaped_loss_plot <- interacting_plots(frag_nShaped_loss)
+frag_nShapedLoess_loss_plot <- interacting_plots(frag_nShapedLoess_loss)
 
+
+#plots of edge amount and habitat amount by landscape ownership 
+
+library(ggplot2)
+library(dplyr)
+
+plot_ownership_distribution <- function(data, x_var, x_axis_title, title) {
+  
+  # Filter and categorize data
+  filtered_data <- data %>%
+    filter(!ownership %in% c("Unknown", NA)) %>%  
+    filter(ownership %in% c("Federal", "State", "Private Industrial", "Private Non-industrial")) %>% 
+    mutate(coast_categorical = case_when(
+      distance_to_coastline < 10000 ~ "<10km",
+      distance_to_coastline >= 10000 & distance_to_coastline < 23000 ~ "10-23 km",
+      distance_to_coastline >= 23000 ~ ">23 km"
+    )) %>%
+    mutate(coast_categorical = factor(coast_categorical, levels = c("<10km", "10-23 km", ">23 km")))
+  
+  # Compute median for each facet group
+  medians <- filtered_data %>%
+    group_by(coast_categorical, ownership) %>%
+    summarise(median_value = median(.data[[x_var]], na.rm = TRUE), .groups = "drop")
+  
+  # Create histogram plot with facet and median lines
+  ggplot(filtered_data, aes(x = .data[[x_var]])) +  
+    geom_histogram(fill = "#4C9A2A", color = "black", alpha = 0.7, bins = 100) +  
+    geom_vline(data = medians, aes(xintercept = median_value), 
+               linetype = "dashed", color = "red", linewidth = 1) +  
+    labs(
+      title = title,
+      x = x_axis_title,  
+      y = "Frequency"
+    ) +
+    facet_wrap(~interaction(coast_categorical, ownership), scales = "free_y", ncol = 3, nrow = 4) +  
+    theme_minimal(base_size = 16) +  
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold"),  
+      axis.text = element_text(color = "black"),
+      axis.title = element_text(face = "bold")
+    ) +
+    scale_x_continuous(expand = c(0, 0)) +  
+    scale_y_continuous(expand = c(0, 0)) +  
+    theme(
+      panel.grid.major = element_line(color = "gray80", linetype = "dashed"),
+      panel.grid.minor = element_blank(),
+      panel.background = element_rect(fill = "ivory")  
+    )
+}
+
+#make ownership plots 
+edge_ownership <- plot_ownership_distribution(hab_points, "edgeRook_2000_40",
+                                              x_axis_title = "Proportion Edge Amount (2km)",
+                                              "Distribution of Edge Amount in 2km Buffers by Ownership")
+
+habitat_ownership <- plot_ownership_distribution(hab_points, "habAmountDich_2000", 
+                                                 x_axis_title = "Proportion Habitat Amount (2km)",
+                                                 "Distribution of Habitat Amount in 2km Buffers by Ownership")
 
 #save figures
 
@@ -259,9 +357,39 @@ ggsave(
   bg = "white"                          # Set background to white
 )
 
-# 
-#
 
+ggsave(
+  filename = "Figures/forescasted_nShapedLoess2_frag_with__2km_hab_loss_plot.png",               # File path and name
+  plot = frag_nShapedLoess_loss_plot,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
+ggsave(
+  filename = "Figures/edge_amount_by_actor.png",               # File path and name
+  plot = edge_ownership,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
+ggsave(
+  filename = "Figures/hab_amount_by_actor.png",               # File path and name
+  plot = habitat_ownership,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
 
 # #Viualise currently across PNW what the relationship at 2km2 is between habitat amount and edge density
 #  hab_points  %>%

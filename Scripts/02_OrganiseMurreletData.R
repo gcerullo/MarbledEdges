@@ -133,6 +133,8 @@ analysisSites = analysisSites %>%
   arrange(id)%>% 
   dplyr::select(-X)
 
+hist(analysisSites$habAmountDich_2000, breaks = 100)
+hist(analysisSites$edgeRook_2000_40, breaks =100)
 # Standardize day-of-year variable `doy` in `analysisSurveys`
 # Creates a squared version `scaleDoy2` for non-linear effects in later modeling
 analysisSurveys = analysisSurveys %>% 

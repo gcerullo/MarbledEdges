@@ -121,7 +121,7 @@ save(list = ls(), file = 'Models/ManuscriptResults.RData')
 # 
 # # Save results
 # save(list = ls(), file = 'Models/ManuscriptResults.RData')
-
+print(coastal_interaction_model)
 # Step 8: Adding Interactions with PCA1
 # ---------------------------------------
 # Incorporate `PC1` as a site covariate and include interaction terms with edge density.
@@ -138,6 +138,26 @@ print(Sys.time() - start_time)
 #compare model outputs- is PC1 edge interaction better than if we don't include the interaction 
 model_with_habitat
 pc1_interaction_model
+
+#Step 9: Adding a 3 way interaction 
+length(coef(pc1_interaction_model))
+
+# Incorporate `PC1` as a site covariate and include interaction terms with edge density.
+start_time <- Sys.time()
+multiple_interaction_model <- occu(
+  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
+    PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + 
+    scaleEdgeDens100 * PC1_t1 + scaleHabAmount2000 + scaleEdgeDens2000 + PC1_t1 * scaleEdgeDens2000+
+    scaleCoastDist * scaleEdgeDens2000,
+  data = analysisData,
+  starts = c(coef(pc1_interaction_model),0)
+)
+print(Sys.time() - start_time)
+
+coastal_interaction_model
+pc1_interaction_model
+multiple_interaction_model
+
 
 # Save final results
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
