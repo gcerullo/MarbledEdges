@@ -17,6 +17,7 @@ covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%
   ))
 
 model <- readRDS("Models/pc1_interaction_model.rds")
+model <- readRDS("Models/pc1_3wayinteraction_model.rds")
 final2020 <- readRDS("PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8
 as.data.frame() %>%  
   #only keep points with an SDM value
@@ -122,6 +123,21 @@ hab_points_fragmentation_linear_hab_loss_cumalative <- hab_points %>% cross_join
     # hab amount declines linearly with increasing fragmentation
     habAmountDich_2000 = habAmountDich_2000 - percent_change #here we remove habitat amount in fixed amounts, rather than as a proportion of current hab cover 
        )
+
+#asssume fragmentation increases in steps of 0.01 and that habitat reduces linearly with increasing ege habitat loss
+# - AND CONSIDER AMOUNT INSTEAD OF PERCENTAGE  
+edge_increase <- data.frame(edge_increase = c(0.01, 0.02,0.03,0.04,0.05,0.06))
+
+hab_points_fragmentation_increase001 <- hab_points %>% cross_join(edge_increase) %>%  
+  mutate(
+    #ie if you lose 25% of habitat, you gain 25% of edge
+    edgeRook_2000_40 = edgeRook_2000_40 + edge_increase, 
+    # hab amount declines linearly with increasing fragmentation
+    habAmountDich_2000 = habAmountDich_2000 - (edge_increase *habAmountDich_2000)
+  ) %>% mutate(percent_change = edge_increase)
+
+
+
 
 
 #above if you have less habitat than can be lost, no deforestation happens. 
@@ -292,6 +308,7 @@ frag_linear_loss_cumalative2 <-  prep_and_predict(hab_points2_fragmentation_line
 frag_quadratic_loss <-  prep_and_predict(hab_points_fragmentation_quadratic_hab_loss) #2km hab loss and quadratic incease in edges
 frag_nShaped_loss <-  prep_and_predict(hab_points_fragmentation_nShape_hab_loss) #2km hab loss and nshaped incease in edges
 frag_nShapedLoess_loss <-  prep_and_predict(hab_points_fragmentation_nShape_loess_hab_loss) #2km hab loss and nshaped incease in edges
+frag_01edge <- prep_and_predict(hab_points_fragmentation_increase001)
 
 #build plots 
 frag_only_plot <- interacting_plots(frag_only)
@@ -301,14 +318,13 @@ frag_linear_loss_cumalative_plot2 <-  interacting_plots(frag_linear_loss_cumalat
 frag_quadratic_loss_plot <- interacting_plots(frag_quadratic_loss)
 frag_nShaped_loss_plot <- interacting_plots(frag_nShaped_loss)
 frag_nShapedLoess_loss_plot <- interacting_plots(frag_nShapedLoess_loss)
+frag_01edge_plot <- interacting_plots(frag_01edge)
 
 
 #----------------------------------------------------------------------
 #plots of edge amount and habitat amount by landscape ownership 
 model <- readRDS("Models/pc1_interaction_model.rds")
 
-library(ggplot2)
-library(dplyr)
 
 plot_ownership_distribution <- function(data, x_var, x_axis_title, title) {
   
@@ -366,26 +382,16 @@ habitat_ownership <- plot_ownership_distribution(hab_points, "habAmountDich_2000
 # #=================================================
 # #What does ownership look like close to the coast? 
 # #=================================================
-# #read in ownership shapefile
-# ownership <- vect("Rasters/land_ownership/All_merge.shx")
-# can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_2021.tif")
-# ext_raster <- ext(can_cov)  # Extent of can_cov
-# crs_raster <- crs(can_cov)  # CRS of can_cov
-# 
-# 
-# # Set the raster resolution (to rasterise shapefile)
-# resolution <- 30  # Set a suitable resolution for your analysis
-# # Create an empty raster template with the same extent and CRS as your SpatVector
-# unique(ownership$Own_simple)
-# ownership_raster_template <- terra::rast(ownership,
-#                                          resolution = resolution)
-# # Rasterize the polygon layer
-# ownership_raster <- terra::rasterize(ownership, ownership_raster_template, field = "Own_simple")
-# ownership_raster_pj <- terra::project(ownership_raster, crs_raster) #match crs
-# # Resample ownership_raster to match the resolution of can_cov
-# ownership_raster_resampled <- terra::resample(ownership_raster_pj, can_cov, method = "near")
-# plot(ownership_raster_resampled)
-# 
+final2020 %>% 
+  filter(distance_to_coastline < 40000) %>%  
+  group_by(ownership) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(x = ownership, y = count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Number of Observations by Ownership",
+       x = "Ownership Type",
+       y = "Count") +
+  theme_minimal()
 
 #save figures
 
@@ -494,6 +500,17 @@ ggsave(
 ggsave(
   filename = "Figures/hab_amount_by_actor.png",               # File path and name
   plot = habitat_ownership,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
+ggsave(
+  filename = "Figures/edge_01_increase.png",               # File path and name
+  plot = frag_01edge_plot,          
   width = 10,                            # Width in inches (publication size)
   height = 8,                           # Height in inches (publication size)
   dpi = 300,                            # Resolution for publication (300 DPI)
