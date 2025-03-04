@@ -67,14 +67,26 @@ prep_and_predict <- function(x){
 #=================================================
 hab_points <- final2020 %>% filter(point_leve_hab_probability >=45)
 #Viualise currently across PNW what the relationship at 2km2 is between habitat amount and edge density
-hab_points  %>%
+hab_points2020 <- hab_points  %>%
   ggplot( aes(x = habAmountDich_2000, y = edgeRook_2000_40)) +
-  geom_point(size = 3) +
-  geom_smooth(method = "loess", span = 0.75, se = FALSE, color = "blue") +
-  labs(title = "Relationship Between Total Habitat and Edge Density",
-       y = "Total Habitat (2km buffer)",
-       x = "Proportion of Habitat as Edge (2km buffer") +
-  theme_minimal()
+  geom_point(size = 3, alpha = 0.1, shape = 1) +
+  geom_smooth(method = "loess", span = 0.75, se = FALSE, color = "red") +
+  labs(x = "Total Habitat (2km buffer)",
+       y = "Proportion of Habitat as Edge (2km buffer)") +
+  theme_minimal(base_size = 16) +  
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),  
+    axis.text = element_text(color = "black"),
+    axis.title = element_text(face = "bold")
+  ) +
+  scale_x_continuous(expand = c(0, 0)) +  
+  scale_y_continuous(expand = c(0, 0)) +  
+  theme(
+    panel.grid.major = element_line(color = "gray80", linetype = "dashed"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "ivory")  
+  )
+
 
 # Fit the loess model
 loess_model <- loess(edgeRook_2000_40 ~ habAmountDich_2000, data = hab_points, span = 0.75)
@@ -100,6 +112,42 @@ hab_points_fragmentation_linear_hab_loss <- hab_points %>% cross_join(percent_ch
 # #hab amount declines linearly with increasing fragmentation
 habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
 
+#asssume fragmentation increases linearly with decline habitat loss
+# - AND CONSIDER AMOUNT INSTEAD OF PERCENTAGE  
+hab_points_fragmentation_linear_hab_loss_cumalative <- hab_points %>% cross_join(percent_change) %>%  
+  mutate(
+    #ie if you lose 25% of habitat, you gain 25% of edge
+    edgeRook_2000_40 = edgeRook_2000_40 + 
+      (edgeRook_2000_40*(percent_change/habAmountDich_2000)), 
+    # hab amount declines linearly with increasing fragmentation
+    habAmountDich_2000 = habAmountDich_2000 - percent_change #here we remove habitat amount in fixed amounts, rather than as a proportion of current hab cover 
+       )
+
+
+#above if you have less habitat than can be lost, no deforestation happens. 
+#here, if habAmountDich_2000 <  than percentage loss, you lose all remaining habitat, and edge and hab amount become 0
+hab_points2_fragmentation_linear_hab_loss_cumalative <- hab_points %>% 
+  cross_join(percent_change) %>%  
+  mutate(
+    # Only mutate if habAmountDich_2000 >= percent_change
+    edgeRook_2000_40 = if_else(
+      habAmountDich_2000 >= percent_change, 
+      edgeRook_2000_40 + (edgeRook_2000_40 * (percent_change / habAmountDich_2000)), 
+      0  # Set to 0 if condition is not met
+    ),
+    
+    habAmountDich_2000 = if_else(
+      habAmountDich_2000 >= percent_change, 
+      habAmountDich_2000 - percent_change, 
+      0  # Set to 0 if condition is not met
+    )
+  )
+
+
+edge = 0.0249112 
+hab = 0.400001
+edge + (edge*(0.4/hab))
+0.5/hab
 #asssume fragmentation increases quadratically with decline habitat loss (see example figure below)
 hab_points_fragmentation_quadratic_hab_loss <- hab_points %>% cross_join(percent_change) %>%  
   mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change^2), 
@@ -239,6 +287,8 @@ frag_df %>%
 #run different scenarios
 frag_only <- prep_and_predict(hab_points_fragmentation) #just fragmentation
 frag_linear_loss <-  prep_and_predict(hab_points_fragmentation_linear_hab_loss) #fragmentation and linear loss of 2km habitat 
+frag_linear_loss_cumalative <-  prep_and_predict(hab_points_fragmentation_linear_hab_loss_cumalative) #hab loss refers to actual AMOUNT of habitat loss. so 0.1 of 2k (or200 ha) = 20hectare, 0.5 = 100ha 
+frag_linear_loss_cumalative2 <-  prep_and_predict(hab_points2_fragmentation_linear_hab_loss_cumalative) #hab and edge amount can go down to 0; hab loss refers to actual AMOUNT of habitat loss. so 0.1 of 2k (or200 ha) = 20hectare, 0.5 = 100ha 
 frag_quadratic_loss <-  prep_and_predict(hab_points_fragmentation_quadratic_hab_loss) #2km hab loss and quadratic incease in edges
 frag_nShaped_loss <-  prep_and_predict(hab_points_fragmentation_nShape_hab_loss) #2km hab loss and nshaped incease in edges
 frag_nShapedLoess_loss <-  prep_and_predict(hab_points_fragmentation_nShape_loess_hab_loss) #2km hab loss and nshaped incease in edges
@@ -246,12 +296,16 @@ frag_nShapedLoess_loss <-  prep_and_predict(hab_points_fragmentation_nShape_loes
 #build plots 
 frag_only_plot <- interacting_plots(frag_only)
 frag_linear_loss_plot <-interacting_plots(frag_linear_loss)
+frag_linear_loss_cumalative_plot <- interacting_plots(frag_linear_loss_cumalative)
+frag_linear_loss_cumalative_plot2 <-  interacting_plots(frag_linear_loss_cumalative2) #hab loss refers to actual AMOUNT of habitat loss. so 0.1 of 2k (or200 ha) = 20hectare, 0.5 = 100ha 
 frag_quadratic_loss_plot <- interacting_plots(frag_quadratic_loss)
 frag_nShaped_loss_plot <- interacting_plots(frag_nShaped_loss)
 frag_nShapedLoess_loss_plot <- interacting_plots(frag_nShapedLoess_loss)
 
 
+#----------------------------------------------------------------------
 #plots of edge amount and habitat amount by landscape ownership 
+model <- readRDS("Models/pc1_interaction_model.rds")
 
 library(ggplot2)
 library(dplyr)
@@ -309,9 +363,45 @@ habitat_ownership <- plot_ownership_distribution(hab_points, "habAmountDich_2000
                                                  x_axis_title = "Proportion Habitat Amount (2km)",
                                                  "Distribution of Habitat Amount in 2km Buffers by Ownership")
 
+# #=================================================
+# #What does ownership look like close to the coast? 
+# #=================================================
+# #read in ownership shapefile
+# ownership <- vect("Rasters/land_ownership/All_merge.shx")
+# can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_2021.tif")
+# ext_raster <- ext(can_cov)  # Extent of can_cov
+# crs_raster <- crs(can_cov)  # CRS of can_cov
+# 
+# 
+# # Set the raster resolution (to rasterise shapefile)
+# resolution <- 30  # Set a suitable resolution for your analysis
+# # Create an empty raster template with the same extent and CRS as your SpatVector
+# unique(ownership$Own_simple)
+# ownership_raster_template <- terra::rast(ownership,
+#                                          resolution = resolution)
+# # Rasterize the polygon layer
+# ownership_raster <- terra::rasterize(ownership, ownership_raster_template, field = "Own_simple")
+# ownership_raster_pj <- terra::project(ownership_raster, crs_raster) #match crs
+# # Resample ownership_raster to match the resolution of can_cov
+# ownership_raster_resampled <- terra::resample(ownership_raster_pj, can_cov, method = "near")
+# plot(ownership_raster_resampled)
+# 
+
 #save figures
 
 # Save the plot using ggsave
+ggsave(
+  filename = "Figures/points_habAmount_by_edge.png",               # File path and name
+  plot = hab_points2020,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
+
 ggsave(
   filename = "Figures/forescasted_frag_only_plot.png",               # File path and name
   plot = frag_only_plot,          
@@ -334,6 +424,27 @@ ggsave(
   bg = "white"                          # Set background to white
 )
 
+ggsave(
+  filename = "Figures/forescasted_CUMALATIVE_frag_with_linear_2km_hab_loss_plot.png",               # File path and name
+  plot = frag_linear_loss_cumalative_plot,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
+ggsave(
+  filename = "Figures/forescasted_CUMALATIVE2_frag_with_linear_2km_hab_loss_plot.png",               # File path and name
+  plot = frag_linear_loss_cumalative_plot2,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
 
 ggsave(
   filename = "Figures/forescasted_quadratic_frag_with__2km_hab_loss_plot.png",               # File path and name

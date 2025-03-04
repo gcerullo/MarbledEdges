@@ -7,7 +7,6 @@ library(data.table)
 library(rnaturalearth)
 
 #read in inputs ####
-model <- readRDS("Models/pc1_interaction_model.rds")
 source('scripts/02_OrganiseMurreletData.R')
 
 #==================================
@@ -189,7 +188,6 @@ saveRDS(habAmount, "Outputs/PNW_2020_habamount.rds")
 #====================================
 #Edge amount 
 #======================================
-#COME BACK TO - THERE IS A CHANCE I AM MISSING NON-FOREST
 
 #Confusion matrix
 #habitat      #open canopy         meaning 

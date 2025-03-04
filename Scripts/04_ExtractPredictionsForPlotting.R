@@ -10,6 +10,11 @@ source("scripts/02_OrganiseMurreletData.R")
 analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
 # Read in interaction model
 model <- readRDS("Models/pc1_interaction_model.rds")
+model <- readRDS("Models/pc1_3wayinteraction_model.rds")
+
+#------------------------------------------------
+#FIT DISTANCCE TO COAST AT ITS MEAN #####
+#------------------------------------------------
 
 # Step 1: Extract site-level covariates from the unmarked object
 # -------------------------------------------------------------
@@ -27,19 +32,16 @@ edge_values <- seq(
   length.out = 100
 )
 
-minPC1 <- min(siteCovs(analysisData)$PC1_t1)
-maxPC1 <- max(siteCovs(analysisData)$PC1_t1)
 
 q10 <- PC1_quantiles %>% pull(q10)
+q50 <- PC1_quantiles %>% pull(q50)
 q90 <- PC1_quantiles %>% pull(q90)
 
-pc1_levels <- c(q10, q90)
+pc1_levels <- c(q10,
+                #q50,
+                q90)
                 #takes 10th percentile
-               #minPC1,#takes worst year 
-               # -1, pattern holds if we consider different cut-off for bad years (rather than just 'worst' year)
-               # 0,
-               # 0.8)  pattern holds if we consider different cut-off for good years (rather than just 'best' year)
-               #  maxPC1)  #takes best year 
+               
 
 predict_data <- expand.grid(
   scaleEdgeDens2000 = edge_values,
@@ -58,6 +60,7 @@ predict_data <- predict_data %>%
   )
 
 
+
 # Step 3: Predict Occupancy with standard errors (for error ribbon)
 predictions <- predict(
   model,  
@@ -74,12 +77,19 @@ predict_data$SE <- predictions$SE
 predict_data$LowerCI <- predict_data$Occupancy - 1.96 * predict_data$SE
 predict_data$UpperCI <- predict_data$Occupancy + 1.96 * predict_data$SE
 
+# Get mean and SD of the original (unscaled) Edge Density variable
+edge_mean <- mean(siteCovs(analysisData)$edgeRook_2000_40, na.rm = TRUE)
+edge_sd <- sd(siteCovs(analysisData)$edgeRook_2000_40, na.rm = TRUE)
+
+# Add unscaled values to the dataset
+predict_data$UnscaledEdgeDens2000 <- (predict_data$scaleEdgeDens2000 * edge_sd) + edge_mean
+
 # Add labels for Ocean Year conditions
 predict_data$OceanYear <- factor(
   predict_data$PC1_t1,
   levels = pc1_levels,
   labels = c("Bad Ocean Years", 
-            # "Neutral Ocean Years", 
+           # "Neutral Ocean Years", 
              "Good Ocean Years")
 )
 
@@ -87,11 +97,11 @@ predict_data$OceanYear <- factor(
 
 # Define a  color palette with muted tones
 nature_palette <- c("Bad Ocean Years" = "#D55E00",   # Grey for "Bad" condition
-                    #"Neutral Ocean Years" = "#A0A0A0", # Lighter grey for "Neutral"
+                   # "Neutral Ocean Years" = "#A0A0A0", # Lighter grey for "Neutral"
                     "Good Ocean Years" = "#56B4E9")   # Muted blue for "Good" condition
 
 ocean_murrelet_hab_occ <- 
-  ggplot(predict_data, aes(x = scaleEdgeDens2000, y = Occupancy, color = OceanYear)) +
+  ggplot(predict_data, aes(x = UnscaledEdgeDens2000, y = Occupancy, color = OceanYear)) +
   geom_line(size = 1.5) +  # Thicker lines for clearer visibility
   geom_ribbon(aes(ymin = LowerCI, ymax = UpperCI, fill = OceanYear), 
               alpha = 0.3, color = NA) +  # Add error ribbons
@@ -104,7 +114,7 @@ ocean_murrelet_hab_occ <-
     name = "Ocean Conditions"
   ) +
   labs(
-    x = "Edge Density (2000m, scaled)",  # Clear x-axis label
+    x = "Proportion of Edge (in 2000m buffer)",  # Clear x-axis label
     y = "Predicted Occupancy Probability",  # Clear y-axis label
     title = "Effect of Edge Density and Ocean Conditions on Murrelet Occupancy"  # Concise title
   ) +
@@ -121,6 +131,108 @@ ocean_murrelet_hab_occ <-
     panel.grid.minor = element_blank(),  # No minor gridlines
     panel.border = element_rect(color = "black", fill = NA, size = 1)  # Add a thin border around the plot
   )
+
+
+#------------------------------------------------
+#GET ESTIMATES OF INTERACTING PC1 & FRAGMENTATION FOR DIFFERENT DISTANCES FROM THE COAST #####
+#------------------------------------------------
+coast_mean <- mean(siteCovs(analysisData)$coastDist, na.rm = TRUE)
+coast_sd <- sd(siteCovs(analysisData)$coastDist, na.rm = TRUE)
+
+coast_levels <- c(
+  (100 - coast_mean) / coast_sd,
+  (20000 - coast_mean) / coast_sd,
+  (40000 - coast_mean) / coast_sd, 
+  (88000 - coast_mean) / coast_sd
+  )
+
+predict_data2 <- expand.grid(
+  scaleEdgeDens2000 = edge_values,
+  PC1_t1 = pc1_levels,
+  scaleCoastDist =coast_levels  # Now using scaled coastal distances
+)
+
+# Add other covariates
+predict_data2 <- predict_data2 %>%
+  mutate(
+    scaleHabAmount100 = mean(siteCovs(analysisData)$scaleHabAmount100, na.rm = TRUE),
+    scaleEdgeDens100 = mean(siteCovs(analysisData)$scaleEdgeDens100, na.rm = TRUE),
+    scaleHabAmount2000 = mean(siteCovs(analysisData)$scaleHabAmount2000, na.rm = TRUE),
+    scaleDoy = doy_means$mean_scaleDoy,
+    scaleDoy2 = doy_means$mean_scaleDoy2
+  )
+
+predictions2 <- predict(
+  model,  
+  newdata = predict_data2,
+  type = "state", 
+  se.fit = TRUE
+)
+
+# Add predicted values to `predict_data`
+predict_data2$Occupancy <- predictions2$Predicted
+predict_data2$SE <- predictions$SE
+
+# Calculate 95% confidence intervals
+predict_data2$LowerCI <- predict_data2$Occupancy - 1.96 * predict_data2$SE
+predict_data2$UpperCI <- predict_data2$Occupancy + 1.96 * predict_data2$SE
+
+predict_data2$CoastDist <- (predict_data2$scaleCoastDist * coast_sd) + coast_mean
+
+# Convert CoastDist to a factor for faceting
+predict_data2$CoastDist <- factor(predict_data2$CoastDist, 
+                                  levels = c(100, 20000, 40000,88000), 
+                                  labels = c("On Coast",
+                                             "20 km inland", 
+                                             "40 km inland", 
+                                             "80 km inland"))
+
+#add labels 
+# Add labels for Ocean Year conditions
+predict_data2$OceanYear <- factor(
+  predict_data2$PC1_t1,
+  levels = pc1_levels,
+  labels = c("Bad Ocean Years", 
+             # "Neutral Ocean Years", 
+             "Good Ocean Years" ))
+
+
+# Add unscaled values to the dataset
+predict_data2$UnscaledEdgeDens2000 <- (predict_data2$scaleEdgeDens2000 * edge_sd) + edge_mean
+
+
+ocean_murrelet_hab_occ_varrying_dist <- 
+  ggplot(predict_data2, aes(x = UnscaledEdgeDens2000, y = Occupancy, color = OceanYear)) +
+  geom_line(size = 1.5) +  
+  geom_ribbon(aes(ymin = LowerCI, ymax = UpperCI, fill = OceanYear), 
+              alpha = 0.3, color = NA) +  
+  scale_color_manual(
+    values = nature_palette,  
+    name = "Ocean Conditions"
+  ) +
+  scale_fill_manual(
+    values = nature_palette,  
+    name = "Ocean Conditions"
+  ) +
+  labs(
+    x = "Proportion of Edge (in 2000m buffer)",
+    y = "Predicted Occupancy Probability",
+    title = "Effect of Edge Density & Coastal Distance on Murrelet Occupancy"
+  ) +
+  facet_wrap(~CoastDist, ncol = 4) +  # Facet by Coastal Distance
+  theme_minimal(base_size = 18) +
+  theme(
+    legend.position = "top",
+    legend.title = element_text(size = 16),
+    legend.text = element_text(size = 14),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1)
+  )
+
 
 #Save outputs #### 
 
@@ -140,6 +252,18 @@ ggsave(
   filename = output_file,               # File path and name
   plot = ocean_murrelet_hab_occ,          
   width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
+# Save the plot using ggsave
+ggsave(
+  filename = "Figures/OccOceanConditionCoastDist.png",               # File path and name
+  plot = ocean_murrelet_hab_occ_varrying_dist,          
+  width = 16,                            # Width in inches (publication size)
   height = 8,                           # Height in inches (publication size)
   dpi = 300,                            # Resolution for publication (300 DPI)
   units = "in",                         # Units for width and height

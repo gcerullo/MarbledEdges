@@ -59,6 +59,7 @@ min(PC1$Value_scaled)
 PC1_quantiles <-  PC1 %>%
   summarise(
     q10 = quantile(`Value_scaled`, 0.1),
+    q50 = quantile(`Value_scaled`, 0.5),
     q90 = quantile(`Value_scaled`, 0.9)
   )
 

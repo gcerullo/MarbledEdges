@@ -10,6 +10,8 @@ library(stringr)
 
 # Define the production targets
 production_targets <- c("0.24", "0.58")
+model <- readRDS("Models/pc1_3wayinteraction_model.rds")
+
 
 # Loop through production targets
 for (target in production_targets) {
@@ -34,7 +36,6 @@ for (target in production_targets) {
   plot(landscapes)
   
   # Model, covariate, and site data inputs
-  model <- readRDS("Models/pc1_interaction_model.rds")
   covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%   
     dplyr::select(PC1_t1, scaleCoastDist, scaleDoy, scaleDoy2, scaleDoy2, OceanYear) %>%  unique()
   real_murrelet_site_data <- read.csv("Inputs/siteData.csv")
@@ -135,7 +136,7 @@ for (target in production_targets) {
   
   
   # Save occupancy boxplot
-  ggsave(paste0("Figures/ForestPoints_Occupancy_Boxplot_p", target, ".png"), plot = p_plot, width = 10, height = 6, dpi = 300)
+  ggsave(paste0("Figures/ForestPoints3way_Occupancy_Boxplot_p", target, ".png"), plot = p_plot, width = 10, height = 6, dpi = 300)
   
   # Export terra raster plots
   file_names <- basename(sources(landscapes))

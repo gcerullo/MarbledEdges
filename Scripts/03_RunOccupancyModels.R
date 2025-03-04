@@ -5,6 +5,7 @@ library(tidyverse)
 library(unmarked)
 library(terra)
 library(ggcorrplot)
+library(AICcmodavg)
 
 #read in unmarked object
 analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
@@ -158,9 +159,44 @@ coastal_interaction_model
 pc1_interaction_model
 multiple_interaction_model
 
+#test for overdispersion 
+
+
+# which is the best model?
+model_list <- fitList(model_with_interactions, multiple_interaction_model, pc1_interaction_model)
+modSel(model_list)
+#test for overfitting: 
+
+#check I am not overfitting
+#define the kfold cross-validation for 1-way interaction model 
+# Define the k-fold cross-validation
+k_fold_results_pc1 <- crossVal(
+  object = pc1_interaction_model,    # Your fitted model
+  method = "Kfold",                       # Specify k-fold validation
+  folds = 10,                             # Number of folds (can adjust as needed)
+  statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
+  parallel = FALSE)
+
+
+# Define the k-fold cross-validation for 2-way model 
+k_fold_results <- crossVal(
+  object = multiple_interaction_model,    # Your fitted model
+  method = "Kfold",                       # Specify k-fold validation
+  folds = 10,                             # Number of folds (can adjust as needed)
+  statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
+  parallel = FALSE)
+
+# View results - seems like there is not much difference in model performance in terms of RMSE and MAE 
+print(k_fold_results_pc1)
+print(k_fold_results)
+# Optionally, access the statistics for each fold
+summary(k_fold_results_pc1)
+summary(k_fold_results)
+
 
 # Save final results
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
 saveRDS(pc1_interaction_model,"Models/pc1_interaction_model.rds")
+saveRDS(multiple_interaction_model,"Models/pc1_3wayinteraction_model.rds")
 
 
