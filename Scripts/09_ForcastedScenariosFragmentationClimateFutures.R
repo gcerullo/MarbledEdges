@@ -73,7 +73,7 @@ hab_points %>% summarise(mean_dist = mean(distance_to_coastline)) # mean suitabl
 
 max_edge <- max(final2020$edgeRook_2000_40)
 
-hab_points_45 <- hab_points %>% filter(distance_to_coastline <= 45000)
+hab_points_35 <- hab_points %>% filter(distance_to_coastline <= 35000)
 
 #Viualise currently across PNW what the relationship at 2km2 is between habitat amount and edge density
 hab_points2020 <- hab_points  %>%
@@ -112,6 +112,8 @@ loess_edge_amount <- data.frame(
 # a circle with a 2km2 radius is 3.14km² = 314 ha. So 0.1 = 31 ha, 62 ha 
 #add different amounts of percentage increase in fragmentation from current (with no change in habitat loss)
 percent_change <- data.frame(percent_change = c(0, 0.1,0.2,0.3,0.4,0.5))
+
+percent_change <- data.frame(percent_change = c(0, 30,60,90,120,150)) / 314 #GIVE IN hectares in instead
 hab_points_fragmentation <- hab_points %>% cross_join(percent_change) %>%  
   mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change))
          
@@ -149,6 +151,8 @@ hab_points_fragmentation_linear_hab_loss_cumalative <- hab_points %>%
     habAmountDich_2000 = habAmountDich_2000_temp
   )
 
+hab_points35_fragmentation_linear_hab_loss_cumalative <- hab_points_fragmentation_linear_hab_loss_cumalative %>%  
+  filter(distance_to_coastline <= 35000)
 # 
 # #asssume fragmentation increases in steps of 0.01 and that habitat reduces linearly with increasing edge habitat loss
 # # - AND CONSIDER AMOUNT INSTEAD OF PERCENTAGE  
@@ -252,8 +256,6 @@ test_df2 <- test_df %>%
 ##############
 ################
 
-
-
 #Visualise different fragmentation and hab amount relationships
 
 #non-linear quadratic effect
@@ -298,21 +300,23 @@ mutate(coast_categorical = case_when(
   distance_to_coastline >= 10000 & distance_to_coastline < 23000 ~ "10-23 km",
   distance_to_coastline >= 23000 ~ ">23 km"
 ))%>%
-  mutate(coast_categorical = factor(coast_categorical, levels = c("coast (<10km)", "10-23 km", ">23 km"))) 
+  mutate(coast_categorical = factor(coast_categorical, levels = c("coast (<10km)", "10-23 km", ">23 km"))) %>% 
+   #if plotting area mutate into hectares (a buffer is 314 hectate)
+   mutate(percent_change = percent_change*314) 
 
 #BOXPLOTS
 frag_df %>%
   filter(ownership %in% c("Federal", "Private Industrial", "Private Non-industrial")) %>% 
   group_by(percent_change) %>% 
   ggplot(aes(x = as.factor(percent_change), y = Occupancy, fill = as.factor(OceanYear))) + 
+  geom_point(aes(color = OceanYear), size = 2, alpha = 0.02, position = position_jitterdodge(jitter.width = .25)) +  # Points with jitter
   geom_boxplot(color = "black") +  # Boxplot with black outline
-  geom_point(aes(color = OceanYear), size = 2, alpha = 0.05, position = position_jitterdodge(jitter.width = 0.1)) +  # Points with jitter
   # Custom fill colors for OceanYear
   scale_fill_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + 
   scale_color_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + # Color points
   theme_classic(base_size = 14) +  # Nature-style theme
   labs(
-    x = "Proportion increase in future fragmentation per 2km",  # Label for x-axis
+    x = "Projected increase in future habitat loss (ha ) per 2km buffer",  # Label for x-axis
     y = "Occupancy"   # Label for y-axis
   ) +
   facet_wrap(coast_categorical~ ownership) +  # Customize facet labels
@@ -335,7 +339,7 @@ frag_df %>%
 frag_only <- prep_and_predict(hab_points_fragmentation) #just fragmentation
 frag_linear_loss <-  prep_and_predict(hab_points_fragmentation_linear_hab_loss) #fragmentation and linear loss of 2km habitat 
 frag_linear_loss_cumalative <-  prep_and_predict(hab_points_fragmentation_linear_hab_loss_cumalative) #hab loss refers to actual AMOUNT of habitat loss. so 0.1 of 2k (or200 ha) = 20hectare, 0.5 = 100ha 
-frag_linear_loss_cumalative2 <-  prep_and_predict(hab_points2_fragmentation_linear_hab_loss_cumalative) #hab and edge amount can go down to 0; hab loss refers to actual AMOUNT of habitat loss. so 0.1 of 2k (or200 ha) = 20hectare, 0.5 = 100ha 
+frag_linear_loss_cumalative2 <-  prep_and_predict(hab_points35_fragmentation_linear_hab_loss_cumalative) #hab and edge amount can go down to 0; hab loss refers to actual AMOUNT of habitat loss. so 0.1 of 2k (or200 ha) = 20hectare, 0.5 = 100ha 
 frag_quadratic_loss <-  prep_and_predict(hab_points_fragmentation_quadratic_hab_loss) #2km hab loss and quadratic incease in edges
 frag_nShaped_loss <-  prep_and_predict(hab_points_fragmentation_nShape_hab_loss) #2km hab loss and nshaped incease in edges
 frag_nShapedLoess_loss <-  prep_and_predict(hab_points_fragmentation_nShape_loess_hab_loss) #2km hab loss and nshaped incease in edges

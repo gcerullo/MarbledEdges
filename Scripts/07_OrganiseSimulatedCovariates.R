@@ -8,9 +8,29 @@ library(raster)
 library(RColorBrewer)
 library(stringr)
 
+source("scripts/01_DeterminePredictors.R")
+source("scripts/02_OrganiseMurreletData.R")
+
 # Define the production targets
 production_targets <- c("0.24", "0.58")
 model <- readRDS("Models/pc1_3wayinteraction_model.rds")
+
+# Model, covariate, and site data inputs
+covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%   
+  dplyr::select(PC1_t1, scaleCoastDist, scaleDoy, scaleDoy2, scaleDoy2, OceanYear) %>%  unique()
+real_murrelet_site_data <- read.csv("Inputs/siteData.csv")
+
+# #determine which distance to coast you want to make the simlations for #####
+coast_mean <- mean(siteCovs(analysisData)$coastDist, na.rm = TRUE)
+coast_sd <- sd(siteCovs(analysisData)$coastDist, na.rm = TRUE)
+current_dist <- covariates$scaleCoastDist %>% unique() 
+# Reverse scaling 
+original_value <- (current_dist * coast_sd) + coast_mean
+print(original_value)
+
+#add different distances to the coast
+covariates <- covariates %>%  crossing(coast_levels)
+
 
 
 # Loop through production targets
@@ -35,10 +55,6 @@ for (target in production_targets) {
   landscapes <- rast(tif_files)
   plot(landscapes)
   
-  # Model, covariate, and site data inputs
-  covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%   
-    dplyr::select(PC1_t1, scaleCoastDist, scaleDoy, scaleDoy2, scaleDoy2, OceanYear) %>%  unique()
-  real_murrelet_site_data <- read.csv("Inputs/siteData.csv")
   
   # Process habitat amount data
   hab_df <- hab %>% rbindlist(idcol = "landscape_name")
@@ -123,7 +139,8 @@ for (target in production_targets) {
     # Custom fill colors for OceanYear
     scale_fill_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + 
     scale_color_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + # Color points
-    theme_classic(base_size = 14) +
+ #   facet_wrap(~CoastDist, ncol = 4) +  # Facet by Coastal Distance
+     theme_classic(base_size = 14) +
     labs(x = "Increasing landscape fragmentation ->", y = "Occupancy", 
          title = paste("Occupancy in forest points across landscape (P =", target, ")")) +
     theme(
