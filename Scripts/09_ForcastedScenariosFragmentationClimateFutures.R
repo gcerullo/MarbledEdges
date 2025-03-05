@@ -66,7 +66,15 @@ prep_and_predict <- function(x){
 #=================================================
 #explore relationship between habitat amount and edge density
 #=================================================
-hab_points <- final2020 %>% filter(point_leve_hab_probability >=45)
+hab_points <- final2020 %>% filter(point_leve_hab_probability >=45) 
+#check mean distance to coast 
+hab_points %>% summarise(mean_dist = mean(distance_to_coastline)) # mean suitable habitat is > 48.6Km from coast
+                                                                  # This is because murrelet SDMs dont account for coast dist
+
+max_edge <- max(final2020$edgeRook_2000_40)
+
+hab_points_45 <- hab_points %>% filter(distance_to_coastline <= 45000)
+
 #Viualise currently across PNW what the relationship at 2km2 is between habitat amount and edge density
 hab_points2020 <- hab_points  %>%
   ggplot( aes(x = habAmountDich_2000, y = edgeRook_2000_40)) +
@@ -101,103 +109,126 @@ loess_edge_amount <- data.frame(
 #=================================================
 #predict scenarios of future fragmentation amount
 #=================================================
+# a circle with a 2km2 radius is 3.14km² = 314 ha. So 0.1 = 31 ha, 62 ha 
 #add different amounts of percentage increase in fragmentation from current (with no change in habitat loss)
-
 percent_change <- data.frame(percent_change = c(0, 0.1,0.2,0.3,0.4,0.5))
 hab_points_fragmentation <- hab_points %>% cross_join(percent_change) %>%  
   mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change))
          
-#asssume fragmentation increases linearly with decline habitat loss 
-hab_points_fragmentation_linear_hab_loss <- hab_points %>% cross_join(percent_change) %>%  
-  mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change), 
-# #hab amount declines linearly with increasing fragmentation
-habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
+# #asssume fragmentation increases linearly with decline habitat loss 
+# hab_points_fragmentation_linear_hab_loss <- hab_points %>% cross_join(percent_change) %>%  
+#   mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change), 
+# # #hab amount declines linearly with increasing fragmentation
+# habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
 
 #asssume fragmentation increases linearly with decline habitat loss
 # - AND CONSIDER AMOUNT INSTEAD OF PERCENTAGE  
-hab_points_fragmentation_linear_hab_loss_cumalative <- hab_points %>% cross_join(percent_change) %>%  
+# Combine and calculate fragmentation and edge amount
+hab_points_fragmentation_linear_hab_loss_cumalative <- hab_points %>%
+  cross_join(percent_change) %>%
   mutate(
-    #ie if you lose 25% of habitat, you gain 25% of edge
-    edgeRook_2000_40 = edgeRook_2000_40 + 
-      (edgeRook_2000_40*(percent_change/habAmountDich_2000)), 
-    # hab amount declines linearly with increasing fragmentation
-    habAmountDich_2000 = habAmountDich_2000 - percent_change #here we remove habitat amount in fixed amounts, rather than as a proportion of current hab cover 
-       )
-
-#asssume fragmentation increases in steps of 0.01 and that habitat reduces linearly with increasing ege habitat loss
-# - AND CONSIDER AMOUNT INSTEAD OF PERCENTAGE  
-edge_increase <- data.frame(edge_increase = c(0.01, 0.02,0.03,0.04,0.05,0.06))
-
-hab_points_fragmentation_increase001 <- hab_points %>% cross_join(edge_increase) %>%  
-  mutate(
-    #ie if you lose 25% of habitat, you gain 25% of edge
-    edgeRook_2000_40 = edgeRook_2000_40 + edge_increase, 
-    # hab amount declines linearly with increasing fragmentation
-    habAmountDich_2000 = habAmountDich_2000 - (edge_increase *habAmountDich_2000)
-  ) %>% mutate(percent_change = edge_increase)
-
-
-
-
-
-#above if you have less habitat than can be lost, no deforestation happens. 
-#here, if habAmountDich_2000 <  than percentage loss, you lose all remaining habitat, and edge and hab amount become 0
-hab_points2_fragmentation_linear_hab_loss_cumalative <- hab_points %>% 
-  cross_join(percent_change) %>%  
-  mutate(
-    # Only mutate if habAmountDich_2000 >= percent_change
-    edgeRook_2000_40 = if_else(
-      habAmountDich_2000 >= percent_change, 
-      edgeRook_2000_40 + (edgeRook_2000_40 * (percent_change / habAmountDich_2000)), 
-      0  # Set to 0 if condition is not met
-    ),
+    # Habitat amount declines linearly with increasing fragmentation
+    habAmountDich_2000_temp = habAmountDich_2000 - percent_change,  # Remove habitat in fixed amounts
     
-    habAmountDich_2000 = if_else(
-      habAmountDich_2000 >= percent_change, 
-      habAmountDich_2000 - percent_change, 
-      0  # Set to 0 if condition is not met
-    )
+    # Ensure total habitat loss is not negative
+    habAmountDich_2000_temp = if_else(habAmountDich_2000_temp < 0, 0, habAmountDich_2000_temp),
+    
+    # Calculate proportional habitat change
+    prop_hab_change = (habAmountDich_2000_temp - habAmountDich_2000) / habAmountDich_2000,
+    
+    # Apply inverse proportional change to edge area
+    prop_edge_change = -prop_hab_change,
+    
+    # Update edge area based on habitat change
+    edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40 * prop_edge_change),
+    
+    # Ensure edge area does not exceed 0.15
+    edgeRook_2000_40 = if_else(edgeRook_2000_40 > max_edge, max_edge, edgeRook_2000_40), 
+    
+    #make sure hab amount is named correctly
+    habAmountDich_2000 = habAmountDich_2000_temp
   )
 
-
-edge = 0.0249112 
-hab = 0.400001
-edge + (edge*(0.4/hab))
-0.5/hab
-#asssume fragmentation increases quadratically with decline habitat loss (see example figure below)
-hab_points_fragmentation_quadratic_hab_loss <- hab_points %>% cross_join(percent_change) %>%  
-  mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change^2), 
-         # #hab amount declines linearly 
-         habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
-
-#assume fragmentation increases in roughly n-shape with declining habitat area 
-#Example of what a quadratic change in edge area looks like with declining habitat 
-hab_points_fragmentation_nShape_hab_loss <- hab_points %>% cross_join(percent_change) %>%
-  mutate(
-    edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40 * (percent_change - percent_change^2)),
-    # #hab amount declines linearly 
-    habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change)
-    )
-hist(hab_points_fragmentation_nShape_loess_hab_loss$edgeRook_2000_40, breaks = 100)
-
-#assume fragmentation increases in loess-derived n-shape with declining habitat area
-#here instead we use the loess n-shape of hab amount to edge amount from actually murrelet habitat to modify 
-#edge amount directly. We: 
-#1 Moidfy habitat amount using percentage 
-#2. For the specific habitat amount left after, we calculate edge amount based on the loess curve shape 
-#. We do this by joining loess_derived edge amount to habitat_amount (based ona rolling join, where we join to the closest habitat amount we have a loess value for)
-hab_points_percent <- hab_points %>% cross_join(percent_change) %>%  
-  mutate(habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
-hist(hab_points_percent$habAmountDich_2000, breaks = 100)  
-# Convert data frames to data.table and perform rolling join
-hab_points_fragmentation_nShape_loess_hab_loss <- setDT(loess_edge_amount)[setDT(hab_points_percent),
-                                                                           on = .(habAmountDich_2000), roll = "nearest", mult = "first"] %>%  
-  as.data.frame() %>%  
-  select(-edgeRook_2000_40) %>% # remove actual edgeRook_2000_40 - we replace with loess derived estimates 
-  rename( edgeRook_2000_40 = loess_edge_amount)
-
-
-##############
+# 
+# #asssume fragmentation increases in steps of 0.01 and that habitat reduces linearly with increasing edge habitat loss
+# # - AND CONSIDER AMOUNT INSTEAD OF PERCENTAGE  
+# edge_increase <- data.frame(edge_increase = c(0.01, 0.02,0.03,0.04,0.05,0.06))
+# 
+# hab_points_fragmentation_increase001 <- hab_points %>% cross_join(edge_increase) %>%  
+#   mutate(
+#     #ie if you lose 25% of habitat, you gain 25% of edge
+#     edgeRook_2000_40 = edgeRook_2000_40 + edge_increase, 
+#     # hab amount declines linearly with increasing fragmentation
+#     habAmountDich_2000 = habAmountDich_2000 - (edge_increase *habAmountDich_2000)
+#   ) %>% mutate(percent_change = edge_increase)
+# 
+# hab_points45_fragmentation_increase001 <- hab_points_45 %>% cross_join(edge_increase) %>%  
+#   mutate(
+#     #ie if you lose 25% of habitat, you gain 25% of edge
+#     edgeRook_2000_40 = edgeRook_2000_40 + edge_increase, 
+#     # hab amount declines linearly with increasing fragmentation
+#     habAmountDich_2000 = habAmountDich_2000 - (edge_increase *habAmountDich_2000)
+#   ) %>% mutate(percent_change = edge_increase)
+# 
+# 
+# #above if you have less habitat than can be lost, no deforestation happens. 
+# #here, if habAmountDich_2000 <  than percentage loss, you lose all remaining habitat, and edge and hab amount become 0
+# hab_points2_fragmentation_linear_hab_loss_cumalative <- hab_points %>% 
+#   cross_join(percent_change) %>%  
+#   mutate(
+#     # Only mutate if habAmountDich_2000 >= percent_change
+#     edgeRook_2000_40 = if_else(
+#       habAmountDich_2000 >= percent_change, 
+#       edgeRook_2000_40 + (edgeRook_2000_40 * (percent_change / habAmountDich_2000)), 
+#       0  # Set to 0 if condition is not met
+#     ),
+#     
+#     habAmountDich_2000 = if_else(
+#       habAmountDich_2000 >= percent_change, 
+#       habAmountDich_2000 - percent_change, 
+#       0  # Set to 0 if condition is not met
+#     )
+#   )
+# 
+# 
+# edge = 0.0249112 
+# hab = 0.400001
+# edge + (edge*(0.4/hab))
+# 0.5/hab
+# #asssume fragmentation increases quadratically with decline habitat loss (see example figure below)
+# hab_points_fragmentation_quadratic_hab_loss <- hab_points %>% cross_join(percent_change) %>%  
+#   mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*percent_change^2), 
+#          # #hab amount declines linearly 
+#          habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
+# 
+# #assume fragmentation increases in roughly n-shape with declining habitat area 
+# #Example of what a quadratic change in edge area looks like with declining habitat 
+# hab_points_fragmentation_nShape_hab_loss <- hab_points %>% cross_join(percent_change) %>%
+#   mutate(
+#     edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40 * (percent_change - percent_change^2)),
+#     # #hab amount declines linearly 
+#     habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change)
+#     )
+# hist(hab_points_fragmentation_nShape_loess_hab_loss$edgeRook_2000_40, breaks = 100)
+# 
+# #assume fragmentation increases in loess-derived n-shape with declining habitat area
+# #here instead we use the loess n-shape of hab amount to edge amount from actually murrelet habitat to modify 
+# #edge amount directly. We: 
+# #1 Moidfy habitat amount using percentage 
+# #2. For the specific habitat amount left after, we calculate edge amount based on the loess curve shape 
+# #. We do this by joining loess_derived edge amount to habitat_amount (based ona rolling join, where we join to the closest habitat amount we have a loess value for)
+# hab_points_percent <- hab_points %>% cross_join(percent_change) %>%  
+#   mutate(habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*percent_change))
+# hist(hab_points_percent$habAmountDich_2000, breaks = 100)  
+# # Convert data frames to data.table and perform rolling join
+# hab_points_fragmentation_nShape_loess_hab_loss <- setDT(loess_edge_amount)[setDT(hab_points_percent),
+#                                                                            on = .(habAmountDich_2000), roll = "nearest", mult = "first"] %>%  
+#   as.data.frame() %>%  
+#   select(-edgeRook_2000_40) %>% # remove actual edgeRook_2000_40 - we replace with loess derived estimates 
+#   rename( edgeRook_2000_40 = loess_edge_amount)
+# 
+# 
+# ##############
 ################
 #COME BACK TO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Logic test
 
@@ -309,6 +340,7 @@ frag_quadratic_loss <-  prep_and_predict(hab_points_fragmentation_quadratic_hab_
 frag_nShaped_loss <-  prep_and_predict(hab_points_fragmentation_nShape_hab_loss) #2km hab loss and nshaped incease in edges
 frag_nShapedLoess_loss <-  prep_and_predict(hab_points_fragmentation_nShape_loess_hab_loss) #2km hab loss and nshaped incease in edges
 frag_01edge <- prep_and_predict(hab_points_fragmentation_increase001)
+frag45_01edge <- prep_and_predict(hab_points45_fragmentation_increase001)
 
 #build plots 
 frag_only_plot <- interacting_plots(frag_only)
@@ -319,6 +351,7 @@ frag_quadratic_loss_plot <- interacting_plots(frag_quadratic_loss)
 frag_nShaped_loss_plot <- interacting_plots(frag_nShaped_loss)
 frag_nShapedLoess_loss_plot <- interacting_plots(frag_nShapedLoess_loss)
 frag_01edge_plot <- interacting_plots(frag_01edge)
+frag45_01edge_plot <- interacting_plots(frag45_01edge)
 
 
 #----------------------------------------------------------------------
