@@ -132,6 +132,7 @@ ocean_murrelet_hab_occ <-
     panel.border = element_rect(color = "black", fill = NA, size = 1)  # Add a thin border around the plot
   )
 
+ocean_murrelet_hab_occ
 
 #------------------------------------------------
 #GET ESTIMATES OF INTERACTING PC1 & FRAGMENTATION FOR DIFFERENT DISTANCES FROM THE COAST #####
@@ -140,7 +141,7 @@ coast_mean <- mean(siteCovs(analysisData)$coastDist, na.rm = TRUE)
 coast_sd <- sd(siteCovs(analysisData)$coastDist, na.rm = TRUE)
 
 coast_levels <- c(
-  (100 - coast_mean) / coast_sd,
+  (1000 - coast_mean) / coast_sd,
   (20000 - coast_mean) / coast_sd,
   (40000 - coast_mean) / coast_sd, 
   (88000 - coast_mean) / coast_sd
@@ -181,7 +182,7 @@ predict_data2$CoastDist <- (predict_data2$scaleCoastDist * coast_sd) + coast_mea
 
 # Convert CoastDist to a factor for faceting
 predict_data2$CoastDist <- factor(predict_data2$CoastDist, 
-                                  levels = c(100, 20000, 40000,88000), 
+                                  levels = c(1000, 20000, 40000,88000), 
                                   labels = c("On Coast",
                                              "20 km inland", 
                                              "40 km inland", 
@@ -233,6 +234,7 @@ ocean_murrelet_hab_occ_varrying_dist <-
     panel.border = element_rect(color = "black", fill = NA, size = 1)
   )
 
+ocean_murrelet_hab_occ_varrying_dist
 
 #Save outputs #### 
 

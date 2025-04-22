@@ -53,23 +53,6 @@ dist_model <- occu(
     coef(simple_detection_model)[2:10] # Detection coefficients for the 9 detection coefficients 
   ))
   
-# Step 4: Adding Year as a Factor # this break - cant have year and PC1 in the same model 
-# --------------------------------
-# start_time <- Sys.time()
-# year_model <- occu(
-#   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2
-#   ~ scaleCoastDist + PC1 + as.factor(year),
-#   data = analysisData,
-#   starts = c(
-#     coef(dist_model)[1:2],  # Existing occupancy coefficients
-#     rep(0, 18),            # Starting values for year dummy variables
-#     coef(dist_model)[3:11]  # Detection coefficients
-#   )
-# )
-# print(Sys.time() - start_time)
-
-# Save intermediate results to a file for reproducibility
-save(list = ls(), file = 'Models/ManuscriptResults.RData')
 
 # Step 5: Habitat Amount and Edge Metrics at Multiple Scales
 # ------------------------------------------------------------
@@ -109,19 +92,19 @@ save(list = ls(), file = 'Models/ManuscriptResults.RData')
 # 
 # # Step 7: Adding PC1 and Edge Interactions
 # # ------------------------------------------------------
-# # Explore interactions between `scaleCoastDist` and edge density metrics.
-# start_time <- Sys.time()
-# coastal_interaction_model <- occu(
-#   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-#     PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + scaleCoastDist * scaleEdgeDens100 + 
-#     scaleHabAmount2000 + scaleEdgeDens2000 + scaleCoastDist * scaleEdgeDens2000,
-#   data = analysisData,
-#   starts = coef(model_with_interactions)  # Use previous model's coefficients
-# )
-# print(Sys.time() - start_time)
-# 
-# # Save results
-# save(list = ls(), file = 'Models/ManuscriptResults.RData')
+# Explore interactions between `scaleCoastDist` and edge density metrics.
+start_time <- Sys.time()
+coastal_interaction_model <- occu(
+  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~
+    PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + scaleCoastDist * scaleEdgeDens100 +
+    scaleHabAmount2000 + scaleEdgeDens2000 + scaleCoastDist * scaleEdgeDens2000,
+  data = analysisData,
+  starts = coef(model_with_interactions)  # Use previous model's coefficients
+)
+print(Sys.time() - start_time)
+
+# Save results
+save(list = ls(), file = 'Models/ManuscriptResults.RData')
 print(coastal_interaction_model)
 # Step 8: Adding Interactions with PCA1
 # ---------------------------------------
@@ -159,12 +142,19 @@ coastal_interaction_model
 pc1_interaction_model
 multiple_interaction_model
 
-#test for overdispersion 
+#test for overfitting 
 
 
 # which is the best model?
 model_list <- fitList(model_with_interactions, multiple_interaction_model, pc1_interaction_model)
+model_list_all <- fitList(simple_detection_model,dist_model,model_with_habitat, model_with_interactions,coastal_interaction_model,pc1_interaction_model,multiple_interaction_model)
+
 modSel(model_list)
+modSel(model_list_all)
+
+#compare ALL models
+
+
 #test for overfitting: 
 
 #check I am not overfitting

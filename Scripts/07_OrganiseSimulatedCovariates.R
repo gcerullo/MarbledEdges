@@ -31,8 +31,6 @@ print(original_value)
 #add different distances to the coast
 covariates <- covariates %>%  crossing(coast_levels)
 
-
-
 # Loop through production targets
 for (target in production_targets) {
   
