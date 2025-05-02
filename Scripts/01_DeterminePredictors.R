@@ -1,4 +1,5 @@
-#Compute additional variables for marbled murrelet models
+#This code computes PC1 metrics for murrelet analysis 
+
 
 #read in packages 
 library(tidyverse)
@@ -14,11 +15,8 @@ ocean_cond <- read.csv("Inputs/2023-Stoplight-RAWDATA.csv") %>%
 
 
 #--------------------------------------------------------------------
-#OCEAN CODITIONS 
+#OCEAN CONDITIONS 
 #--------------------------------------------------------------------
-
-
-
 
 #forest_age information 
 

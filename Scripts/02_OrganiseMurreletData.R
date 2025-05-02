@@ -47,7 +47,7 @@ siteData  <- read.csv("Inputs/siteData.csv")
 surveys  <- read.csv("Inputs/MurreletSurveys.csv") %>% dplyr::select(-X) #multipe repeats a some stations
 pointsInRoiAndSamplingWindow  <- read.csv("Inputs/pointsInRoiAndSamplingWindow.csv")
 
-#read in PC1 data
+#read in PC1 data calculated in script 1 #
 PC1_all <- read.csv("Outputs/PC1_scaled_inverted.csv") %>%  
   dplyr::select(Value_scaled, Year) %>%  #dplyr::select PC1 which has already been inverted and scaled
   rename(PC1 = Value_scaled, 
@@ -61,6 +61,7 @@ PC1_t1 <- PC1_all %>% dplyr::select(year_t1, PC1_t1)
 earliest_PC1_year <- PC1_t1 %>%
   filter(year_t1 == min(year_t1)) %>% 
   pull(year_t1)
+PC1_normal_year <- PC1_all %>% select(year, PC1)
 
 ## Filter `siteData` to include only sites with a specific edge condition (e.g., gt2kmFakeEdge==1) 
 # and create new variables `edgeArea100` and `edgeArea2000` based on specific edge and habitat values
@@ -70,14 +71,14 @@ analysisSites = siteData %>%
   mutate(edgeArea2000 = (edgeRook_2000_40 * (pi * 2000^2)) / (habAmountDich_2000 * (pi * 2000^2) + 1)) %>%  
   # join by PC1 in prev year
   left_join(PC1_t1, by = c("year"= "year_t1"))%>%
-  #only keep data for which we have data on PC1 value
+  left_join(PC1_normal_year, by = "year") %>% 
+  #only keep data for which we have data on PC1 value for 1 yr bfore
   filter(year >= earliest_PC1_year)
 
 #join site data with murrelet surveys and PC1 
 analysisSurveys = analysisSites %>% 
   dplyr::select(id, year) %>% 
   left_join(surveys, by = c('id', 'year')) %>% 
-  
   #only keep data for which we have data on PC1 value
   filter(year >= earliest_PC1_year)
 
@@ -135,6 +136,7 @@ analysisSites = analysisSites %>%
 
 hist(analysisSites$habAmountDich_2000, breaks = 100)
 hist(analysisSites$edgeRook_2000_40, breaks =100)
+
 # Standardize day-of-year variable `doy` in `analysisSurveys`
 # Creates a squared version `scaleDoy2` for non-linear effects in later modeling
 analysisSurveys = analysisSurveys %>% 

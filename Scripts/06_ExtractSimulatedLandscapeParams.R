@@ -53,8 +53,8 @@ plot(landscapes)
 plot(landscapes[[1]])
 
 #define key paramas####
-buffer_sizes <- c(1, 20)  # Buffer sizes in meters
-buffer_distances <- c(1, 20)  # Buffer sizes in meters
+buffer_sizes <- c(1, 20)  # Buffer sizes in 100 meters
+buffer_distances <- c(1, 20)  # Buffer sizes in 100 meters
 
 #--------------------------------------
 #Develop sampling points across landscape #####

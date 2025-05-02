@@ -54,7 +54,7 @@ dist_model <- occu(
   ))
   
 
-# Step 5: Habitat Amount and Edge Metrics at Multiple Scales
+# Step 5: introduce Habitat Amount and Edge Metrics at Multiple Scales
 # ------------------------------------------------------------
 # Add site-level habitat amount and edge density metrics at both 100m and 2000m scales.
 start_time <- Sys.time()
@@ -70,7 +70,7 @@ model_with_habitat <- occu(
 print(Sys.time() - start_time)
 
 # Save updated results
-save(list = ls(), file = 'Models/ManuscriptResults.RData')
+#save(list = ls(), file = 'Models/ManuscriptResults.RData')
 
 # Step 6: Adding Habitat-Edge Interactions
 # -----------------------------------------
@@ -88,11 +88,12 @@ model_with_interactions <- occu(
 print(Sys.time() - start_time)
 
 # Save results for interaction model
-save(list = ls(), file = 'Models/ManuscriptResults.RData')
+#save(list = ls(), file = 'Models/ManuscriptResults.RData')
 # 
 # # Step 7: Adding PC1 and Edge Interactions
 # # ------------------------------------------------------
-# Explore interactions between `scaleCoastDist` and edge density metrics.
+# Explore interactions between `scaleCoastDist` and edge density metrics - how important is distance in modulating
+#species' responses to edges .
 start_time <- Sys.time()
 coastal_interaction_model <- occu(
   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~
@@ -104,7 +105,7 @@ coastal_interaction_model <- occu(
 print(Sys.time() - start_time)
 
 # Save results
-save(list = ls(), file = 'Models/ManuscriptResults.RData')
+#save(list = ls(), file = 'Models/ManuscriptResults.RData')
 print(coastal_interaction_model)
 # Step 8: Adding Interactions with PCA1
 # ---------------------------------------
@@ -112,53 +113,76 @@ print(coastal_interaction_model)
 start_time <- Sys.time()
 pc1_interaction_model <- occu(
   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-    PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + 
-    scaleEdgeDens100 * PC1_t1 + scaleHabAmount2000 + scaleEdgeDens2000 + PC1_t1 * scaleEdgeDens2000,
+    PC1_t1 + scaleCoastDist  + 
+    scaleHabAmount100 + scaleEdgeDens100 +
+    scaleHabAmount2000 + scaleEdgeDens2000 + 
+    scaleEdgeDens100 * PC1_t1+
+    PC1_t1 * scaleEdgeDens2000,
   data = analysisData,
   starts = c(coef(coastal_interaction_model))
 )
 print(Sys.time() - start_time)
 
-#compare model outputs- is PC1 edge interaction better than if we don't include the interaction 
-model_with_habitat
-pc1_interaction_model
 
-#Step 9: Adding a 3 way interaction 
+#Step 9: Adding a 3 way interaction (distance*PC1*edge2000) 
 length(coef(pc1_interaction_model))
 
-# Incorporate `PC1` as a site covariate and include interaction terms with edge density.
 start_time <- Sys.time()
 multiple_interaction_model <- occu(
   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-    PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + 
-    scaleEdgeDens100 * PC1_t1 + scaleHabAmount2000 + scaleEdgeDens2000 + PC1_t1 * scaleEdgeDens2000+
-    scaleCoastDist * scaleEdgeDens2000,
+    PC1_t1 + scaleCoastDist  + 
+    scaleHabAmount100 + scaleHabAmount2000 + 
+    scaleEdgeDens100 + scaleEdgeDens2000 +
+    scaleCoastDist * scaleEdgeDens2000 * PC1_t1,
   data = analysisData,
-  starts = c(coef(pc1_interaction_model),0)
+  starts = c(coef(pc1_interaction_model),0,0)
 )
 print(Sys.time() - start_time)
 
-coastal_interaction_model
-pc1_interaction_model
-multiple_interaction_model
+# Save results
+#save(list = ls(), file = 'Models/ManuscriptResults.RData')
 
 #test for overfitting 
 
 
 # which is the best model?
 model_list <- fitList(model_with_interactions, multiple_interaction_model, pc1_interaction_model)
-model_list_all <- fitList(simple_detection_model,dist_model,model_with_habitat, model_with_interactions,coastal_interaction_model,pc1_interaction_model,multiple_interaction_model)
+
+model_list_all <- fitList(simple_detection_model,dist_model,model_with_habitat, model_with_interactions,
+                          coastal_interaction_model,
+                          pc1_interaction_model,multiple_interaction_model)
+
+model_list_subs <- fitList(pc1_interaction_model, coastal_interaction_model, multiple_interaction_model) 
 
 modSel(model_list)
 modSel(model_list_all)
+modSel(model_list_subs)
+
+multiple_interaction_model
+WHY_multiple_interaction_model <- readRDS("Models/pc1_3way_v2_interaction_model.rds")
+WHY_pc1_interaction_model <- readRDS("Models/pc1_interaction_model.rds")
+WHY_pc1_interaction_model
+pc1_interaction_model
+
+save(list = ls(), file = 'Models/TESTManuscriptResults.RData')
+
 
 #compare ALL models
 
-
 #test for overfitting: 
 
-#check I am not overfitting
+#check I am not overfitting 
 #define the kfold cross-validation for 1-way interaction model 
+
+#kfolds coastal 
+k_fold_results_coastal <- crossVal(
+  object = coastal_interaction_model     ,    # Your fitted model
+  method = "Kfold",                       # Specify k-fold validation
+  folds = 10,                             # Number of folds (can adjust as needed)
+  statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
+  parallel = FALSE)
+
+
 # Define the k-fold cross-validation
 k_fold_results_pc1 <- crossVal(
   object = pc1_interaction_model,    # Your fitted model
@@ -177,16 +201,14 @@ k_fold_results <- crossVal(
   parallel = FALSE)
 
 # View results - seems like there is not much difference in model performance in terms of RMSE and MAE 
+print(k_fold_results_coastal)
 print(k_fold_results_pc1)
 print(k_fold_results)
-# Optionally, access the statistics for each fold
-summary(k_fold_results_pc1)
-summary(k_fold_results)
 
 
 # Save final results
 save(list = ls(), file = 'Models/ManuscriptResults.RData')
 saveRDS(pc1_interaction_model,"Models/pc1_interaction_model.rds")
-saveRDS(multiple_interaction_model,"Models/pc1_3wayinteraction_model.rds")
+saveRDS(multiple_interaction_model,"Models/pc1_3way_v2_interaction_model.rds")
 
 

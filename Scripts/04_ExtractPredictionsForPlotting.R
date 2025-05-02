@@ -10,7 +10,10 @@ source("scripts/02_OrganiseMurreletData.R")
 analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
 # Read in interaction model
 model <- readRDS("Models/pc1_interaction_model.rds")
-model <- readRDS("Models/pc1_3wayinteraction_model.rds")
+#model <- readRDS("Models/pc1_3wayinteraction_model.rds")
+model <- readRDS("Models/pc1_3way_v2_interaction_model.rds")
+model <- readRDS("Models/NEW_pc1_3way_interaction_model.rds")
+
 
 #------------------------------------------------
 #FIT DISTANCCE TO COAST AT ITS MEAN #####

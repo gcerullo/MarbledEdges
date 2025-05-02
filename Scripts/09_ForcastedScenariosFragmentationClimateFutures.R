@@ -6,6 +6,10 @@ library(exactextractr)
 library(data.table)
 library(tidyverse)
 library(mgcv)
+library(furrr)
+library(parallel)
+library(skimr)
+library(summarytools)
 
 # read in inputs #####
 covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%   
@@ -15,18 +19,20 @@ covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%
     OceanYear == "Bad Ocean Years" ~ -1.880589,
     TRUE ~ PC1_t1  # keeps the original value of PC1_t1 when OceanYear is not "Bad Ocean Years"
   ))
-
 #model <- readRDS("Models/pc1_interaction_model.rds")
-model <- readRDS("Models/pc1_3wayinteraction_model.rds")
+#model <- readRDS("Models/pc1_3wayinteraction_model.rds")
+model <- readRDS("Models/pc1_3way_v2_interaction_model.rds")
+
 final2020 <- readRDS("PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8
-as.data.frame() %>%  
-  #only keep points with an SDM value
-filter(!is.na(point_leve_hab_probability))
+as.data.frame() #%>%  
+#   #only keep points with an SDM value
+# filter(!is.na(point_leve_habitat))
+# #dfSummary(final2020)
+
 
 #----------------------------------
 #functions ####
 #----------------------------------
-
 #function for scaling data and making model predictions dataset ####
 prep_and_predict <- function(x){
   
@@ -37,7 +43,7 @@ prep_and_predict <- function(x){
     scaleEdgeDens100 = scale(edgeRook_100_40), 
     scaleEdgeDens2000 = scale(edgeRook_2000_40), 
     scaleCoastDist = scale(distance_to_coastline)) %>%  
-    dplyr::select(point_id, scaleHabAmount100, scaleHabAmount2000, scaleEdgeDens100, scaleEdgeDens2000,scaleCoastDist,hab_loss_amount) %>% 
+    dplyr::select(point_id, scaleHabAmount100, scaleHabAmount2000, scaleEdgeDens100, scaleEdgeDens2000,scaleCoastDist,hab_loss_amount,cancov_2020) %>% 
     cross_join(covariates)
   
   # Predict occupancy with standard errors (for error ribbon)
@@ -45,7 +51,7 @@ prep_and_predict <- function(x){
     model,  
     newdata = prediction_df,
     type = "state", 
-    se.fit = TRUE  # Obtain standard errors for predictions
+    se.fit = FALSE  # Obtain standard errors for predictions
   ) %>% 
     rename(Occupancy = Predicted)
   
@@ -56,19 +62,90 @@ prep_and_predict <- function(x){
   
   #add back in other info on ownership and SDM model 
   add_data_back <- x %>%  
-    dplyr::select(point_id, point_leve_hab_probability, ownership,distance_to_coastline) %>% unique()
+    dplyr::select(point_id, point_leve_habitat, ownership,distance_to_coastline) %>% unique()
   
   prediction_df <- prediction_df %>%  left_join(add_data_back)
   
   return(prediction_df)
 }
 
+#to use if we use all points (and not just the poins that >.45 hab suitabili)
+prep_and_predict_parallelised <- function(x) {
+  # Prepare data for prediction with scaled covariates
+  prediction_df <- x %>%
+    mutate(
+      scaleHabAmount100 = scale(habAmountDich_100),
+      scaleHabAmount2000 = scale(habAmountDich_2000),
+      scaleEdgeDens100 = scale(edgeRook_100_40),
+      scaleEdgeDens2000 = scale(edgeRook_2000_40),
+      scaleCoastDist = scale(distance_to_coastline)
+    ) %>%
+    dplyr::select(
+      point_id,
+      scaleHabAmount100,
+      scaleHabAmount2000,
+      scaleEdgeDens100,
+      scaleEdgeDens2000,
+      scaleCoastDist,
+      hab_loss_amount,
+      cancov_2020
+    ) %>%
+    cross_join(covariates)
+  
+  # Function for predicting a chunk of data
+  predict_chunk <- function(data_chunk) {
+    predict(
+      model,
+      newdata = data_chunk,
+      type = "state",
+      se.fit = FALSE
+    ) %>%
+      rename(Occupancy = Predicted)
+  }
+  
+  # Split data into manageable chunks
+  chunk_size <- 350000  # Adjust based on memory and cores
+  chunks <- split(prediction_df, (seq_len(nrow(prediction_df)) - 1) %/% chunk_size)
+  
+  # Set up parallel processing
+  plan(multisession, workers = parallel::detectCores() - 1)  # Use all but one core
+  
+  # Predict occupancy in parallel
+  predictions <- future_map_dfr(chunks, predict_chunk)
+  
+  # Combine predictions back with the original data
+  prediction_df <- prediction_df %>%
+    bind_cols(predictions) %>%
+    mutate(
+      lower_CI = Occupancy - 1.96 * SE,
+      upr_CI = Occupancy + 1.96 * SE
+    )
+  
+  # Add back in other information
+  add_data_back <- x %>%
+    dplyr::select(
+      point_id,
+      point_leve_habitat,
+      ownership,
+      distance_to_coastline
+    ) %>%
+    unique()
+  
+  prediction_df <- prediction_df %>%
+    left_join(add_data_back, by = "point_id")
+  
+  return(prediction_df)
+}
+
+
+
 #=================================================
 #explore relationship between habitat amount and edge density
-#=================================================
- hab_points <- final2020 %>% filter(point_leve_hab_probability >=45) 
+
+hab_points <- final2020  #include all points
+
  #check mean distance to coast 
- hab_points %>% summarise(mean_dist = mean(distance_to_coastline)) # mean suitable habitat is > 48.6Km from coast
+ hab_points %>% summarise(mean_dist = mean(distance_to_coastline)) # mean suitable habitat is > 76 Km from coast
                                                                    # This is because murrelet SDMs dont account for coast dist
  
  max_edge <- max(final2020$edgeRook_2000_40)
@@ -109,14 +186,16 @@ prep_and_predict <- function(x){
 #=================================================
 #predict scenarios of future fragmentation amount
 #=================================================
-# a circle with a 2km2 radius is 3.14km² = 314 ha. So 0.1 = 31 ha, 62 ha 
+# a circle with a 2km2 radius is 12.57² = 1257 ha. 
+buff2km_ha_area = 1257
 #add different amounts of percentage increase in fragmentation from current (with no change in habitat loss)
-hab_loss_amounts <- data.frame(hab_loss_amounts = c(0, 0.1,0.2,0.3,0.4,0.5))
+hab_loss_amount <- data.frame(hab_loss_amount = c(0, 0.1,0.2,0.3,0.4,0.5)) %>% 
+                                 mutate(hab_loss_amount_ha= hab_loss_amount * buff2km_ha_area)
 
-hab_loss_amount <- data.frame(hab_loss_amount = c(0, 30,60,90,120,150)) / 314 #GIVE IN hectares in instead
+#hab_loss_amount <- data.frame(hab_loss_amount = c(0, 30,60,90,120,150)) / 314 #GIVE IN hectares in instead
 
-hab_points_fragmentation <- hab_points %>% cross_join(hab_loss_amount) %>%  
-  mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*hab_loss_amount))
+# hab_points_fragmentation <- hab_points %>% cross_join(hab_loss_amount) %>%  
+#   mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*hab_loss_amount))
          
 # #asssume fragmentation increases linearly with decline habitat loss 
 # hab_points_fragmentation_linear_hab_loss <- hab_points %>% cross_join(hab_loss_amount) %>%  
@@ -130,130 +209,37 @@ hab_points_fragmentation <- hab_points %>% cross_join(hab_loss_amount) %>%
 hab_points_fragmentation_linear_hab_loss_cumalative <- hab_points %>%
   cross_join(hab_loss_amount) %>%
   mutate(
+    
+    #if habitat amount is < 0.0001 then make 0; functionally the same but low vals lead to odd proportional changes
+    habAmountDich_2000 = if_else(habAmountDich_2000 < 0.0001, 0, habAmountDich_2000),  
+    
+    
     # Habitat amount declines linearly with increasing fragmentation
-    habAmountDich_2000_temp = habAmountDich_2000 - hab_loss_amount,  # Remove habitat in fixed amounts
+    habAmountDich_2000_temp = (habAmountDich_2000) - hab_loss_amount,  # Remove habitat in fixed amounts
     
     # Ensure total habitat loss is not negative
-    habAmountDich_2000_temp = if_else(habAmountDich_2000_temp < 0, 0, habAmountDich_2000_temp),
+    habAmountDich_2000_temp = if_else(habAmountDich_2000_temp < 0, 0.0001, habAmountDich_2000_temp),  
     
     # Calculate proportional habitat change
-    prop_hab_change = (habAmountDich_2000_temp - habAmountDich_2000) / habAmountDich_2000,
-    
-    # Apply inverse proportional change to edge area
+    prop_hab_change = (habAmountDich_2000_temp - habAmountDich_2000) / habAmountDich_2000, #leads to Inf values if habAmountDich_2000 = 0 
+     
+    #nsure Inf values are dealt with correctly
+    prop_hab_change = ifelse(is.infinite(prop_hab_change), 0, prop_hab_change),     # Apply inverse proportional change to edge area
     prop_edge_change = -prop_hab_change,
     
     # Update edge area based on habitat change
-    edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40 * prop_edge_change),
+    edgeRook_2000_40_temp = edgeRook_2000_40 + (edgeRook_2000_40 * prop_edge_change),
     
-    # Ensure edge area does not exceed 0.15
-    edgeRook_2000_40 = if_else(edgeRook_2000_40 > max_edge, max_edge, edgeRook_2000_40), 
+    # Ensure edge area does not exceed the max value observed in the landscape
+    edgeRook_2000_40 = if_else(edgeRook_2000_40 > max_edge, max_edge, edgeRook_2000_40_temp) , 
     
     #make sure hab amount is named correctly
     habAmountDich_2000 = habAmountDich_2000_temp
   )
 
-hab_points35_fragmentation_linear_hab_loss_cumalative <- hab_points_fragmentation_linear_hab_loss_cumalative %>%  
-  filter(distance_to_coastline <= 35000)
-# 
-# #asssume fragmentation increases in steps of 0.01 and that habitat reduces linearly with increasing edge habitat loss
-# # - AND CONSIDER AMOUNT INSTEAD OF PERCENTAGE  
-# edge_increase <- data.frame(edge_increase = c(0.01, 0.02,0.03,0.04,0.05,0.06))
-# 
-# hab_points_fragmentation_increase001 <- hab_points %>% cross_join(edge_increase) %>%  
-#   mutate(
-#     #ie if you lose 25% of habitat, you gain 25% of edge
-#     edgeRook_2000_40 = edgeRook_2000_40 + edge_increase, 
-#     # hab amount declines linearly with increasing fragmentation
-#     habAmountDich_2000 = habAmountDich_2000 - (edge_increase *habAmountDich_2000)
-#   ) %>% mutate(hab_loss_amount = edge_increase)
-# 
-# hab_points45_fragmentation_increase001 <- hab_points_45 %>% cross_join(edge_increase) %>%  
-#   mutate(
-#     #ie if you lose 25% of habitat, you gain 25% of edge
-#     edgeRook_2000_40 = edgeRook_2000_40 + edge_increase, 
-#     # hab amount declines linearly with increasing fragmentation
-#     habAmountDich_2000 = habAmountDich_2000 - (edge_increase *habAmountDich_2000)
-#   ) %>% mutate(hab_loss_amount = edge_increase)
-# 
-# 
-# #above if you have less habitat than can be lost, no deforestation happens. 
-# #here, if habAmountDich_2000 <  than percentage loss, you lose all remaining habitat, and edge and hab amount become 0
-# hab_points2_fragmentation_linear_hab_loss_cumalative <- hab_points %>% 
-#   cross_join(hab_loss_amount) %>%  
-#   mutate(
-#     # Only mutate if habAmountDich_2000 >= hab_loss_amount
-#     edgeRook_2000_40 = if_else(
-#       habAmountDich_2000 >= hab_loss_amount, 
-#       edgeRook_2000_40 + (edgeRook_2000_40 * (hab_loss_amount / habAmountDich_2000)), 
-#       0  # Set to 0 if condition is not met
-#     ),
-#     
-#     habAmountDich_2000 = if_else(
-#       habAmountDich_2000 >= hab_loss_amount, 
-#       habAmountDich_2000 - hab_loss_amount, 
-#       0  # Set to 0 if condition is not met
-#     )
-#   )
-# 
-# 
-# edge = 0.0249112 
-# hab = 0.400001
-# edge + (edge*(0.4/hab))
-# 0.5/hab
-# #asssume fragmentation increases quadratically with decline habitat loss (see example figure below)
-# hab_points_fragmentation_quadratic_hab_loss <- hab_points %>% cross_join(hab_loss_amount) %>%  
-#   mutate(edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40*hab_loss_amount^2), 
-#          # #hab amount declines linearly 
-#          habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*hab_loss_amount))
-# 
-# #assume fragmentation increases in roughly n-shape with declining habitat area 
-# #Example of what a quadratic change in edge area looks like with declining habitat 
-# hab_points_fragmentation_nShape_hab_loss <- hab_points %>% cross_join(hab_loss_amount) %>%
-#   mutate(
-#     edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40 * (hab_loss_amount - hab_loss_amount^2)),
-#     # #hab amount declines linearly 
-#     habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*hab_loss_amount)
-#     )
-# hist(hab_points_fragmentation_nShape_loess_hab_loss$edgeRook_2000_40, breaks = 100)
-# 
-# #assume fragmentation increases in loess-derived n-shape with declining habitat area
-# #here instead we use the loess n-shape of hab amount to edge amount from actually murrelet habitat to modify 
-# #edge amount directly. We: 
-# #1 Moidfy habitat amount using percentage 
-# #2. For the specific habitat amount left after, we calculate edge amount based on the loess curve shape 
-# #. We do this by joining loess_derived edge amount to habitat_amount (based ona rolling join, where we join to the closest habitat amount we have a loess value for)
-# hab_points_percent <- hab_points %>% cross_join(hab_loss_amount) %>%  
-#   mutate(habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*hab_loss_amount))
-# hist(hab_points_percent$habAmountDich_2000, breaks = 100)  
-# # Convert data frames to data.table and perform rolling join
-# hab_points_fragmentation_nShape_loess_hab_loss <- setDT(loess_edge_amount)[setDT(hab_points_percent),
-#                                                                            on = .(habAmountDich_2000), roll = "nearest", mult = "first"] %>%  
-#   as.data.frame() %>%  
-#   select(-edgeRook_2000_40) %>% # remove actual edgeRook_2000_40 - we replace with loess derived estimates 
-#   rename( edgeRook_2000_40 = loess_edge_amount)
-# 
-# 
-# ##############
-################
-#COME BACK TO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Logic test
-
-#WRONG - if you lose 100% of your habitat (percentage change =1), the edge amount stays the same! 
-
-#example run through - is this working how I expect...Or would a decline in habit from 100% to 75% currently 
-# # make the same edge area as a decline from 50% to 25% (ie not considering starting context appropriately)
-# # Create the final dataframe directly
-# test_df <- expand_grid(
-#   edgeRook_2000_40 = seq(0, 1, by = 0.01),
-#   habAmountDich_2000 = seq(0, 1, by = 0.1),
-#   hab_loss_amount = seq(0, 1, by = 0.2)
-# )
-# 
-# test_df2 <- test_df %>%  
-#   mutate( # #hab amount declines linearly 
-#     v2_habAmountDich_2000 = habAmountDich_2000 - (habAmountDich_2000*hab_loss_amount),
-#     v2_edgeRook_2000_40 = edgeRook_2000_40 + (edgeRook_2000_40 * (hab_loss_amount - hab_loss_amount^2))
-#   )
-# # 
+# xtest <- hab_points_fragmentation_linear_hab_loss_cumalative %>% filter(point_id == "p642021")
+dfSummary(hab_points_fragmentation_linear_hab_loss_cumalative)
+overlyhigh <- hab_points_fragmentation_linear_hab_loss_cumalative %>%  filter(prop_hab_change >10)
 # ##############
 # ################
 # 
@@ -345,12 +331,11 @@ frag_df %>%
 }
 
 
-
 ownership_only_variation_plot <- function(x){
   #add categorical distance to coast info 
   frag_df <- x %>%  
     #if plotting area mutate into hectares (a buffer is 314 hectate)
-    mutate(hab_loss_amount = hab_loss_amount*314) 
+    mutate(hab_loss_amount = hab_loss_amount) 
   
   #BOXPLOTS
   frag_df %>%
@@ -385,24 +370,44 @@ ownership_only_variation_plot <- function(x){
     )
 }
 
+dfSummary(x)
+#prep-and-predict (use for smaller number of points - ie if filter hab >0.45)
+frag_linear_loss <-  hab_points_fragmentation_linear_hab_loss_cumalative %>%  
+  filter( distance_to_coastline < 84000, cancov_2020 >0) %>% 
+  prep_and_predict()  #fragmentation and linear loss of 2km habitat 
 
-#run different scenarios
-#frag_only <- prep_and_predict(hab_points_fragmentation) #just fragmentation
-frag_linear_loss <-  prep_and_predict(hab_points_fragmentation_linear_hab_loss_cumalative) #fragmentation and linear loss of 2km habitat 
+#check high preditions 
+highOcc <- frag_linear_loss %>%  filter(Occupancy > 0.5)
 
-# frag_linear_loss_cumalative <-  prep_and_predict(hab_points_fragmentation_linear_hab_loss_cumalative) #hab loss refers to actual AMOUNT of habitat loss. so 0.1 of 2k (or200 ha) = 20hectare, 0.5 = 100ha 
-# frag_linear_loss_cumalative2 <-  prep_and_predict(hab_points35_fragmentation_linear_hab_loss_cumalative) #hab and edge amount can go down to 0; hab loss refers to actual AMOUNT of habitat loss. so 0.1 of 2k (or200 ha) = 20hectare, 0.5 = 100ha 
-# frag_quadratic_loss <-  prep_and_predict(hab_points_fragmentation_quadratic_hab_loss) #2km hab loss and quadratic incease in edges
-# frag_nShaped_loss <-  prep_and_predict(hab_points_fragmentation_nShape_hab_loss) #2km hab loss and nshaped incease in edges
-# frag_nShapedLoess_loss <-  prep_and_predict(hab_points_fragmentation_nShape_loess_hab_loss) #2km hab loss and nshaped incease in edges
-# frag_01edge <- prep_and_predict(hab_points_fragmentation_increase001)
-# frag45_01edge <- prep_and_predict(hab_points45_fragmentation_increase001)
+plot <- frag_linear_loss %>%   ownership_only_variation_plot()
+
+
+#use if we are using all of the points (eg. not just hab >0.45)
+frag_linear_loss <-  prep_and_predict_parallelised(hab_points_fragmentation_linear_hab_loss_cumalative) #fragmentation and linear loss of 2km habitat 
+saveRDS(frag_linear_loss, "Outputs/pnw_all_points_predictions.rds")
+dfSummary(frag_linear_loss)
+
+# frag_linear_loss <-  prep_and_predict(hab_points_fragmentation_linear_hab_loss_cumalative) #fragmentation and linear loss of 2km habitat 
+# frag_linear_loss35 <- prep_and_predict(hab_points35_fragmentation_linear_hab_loss_cumalative)
+# 
 
 #build boxplots of occ by future hab_loss * fragmentation plots 
 frag_only_plot <- interacting_plots(frag_only)
 frag_linear_loss_plot <-interacting_plots(frag_linear_loss)
 owner_frag_linear_loss_plot <-ownership_only_variation_plot(frag_linear_loss) #plot onership impact without distance fragmentation
 
+
+temp_id <- final2020 %>% select(point_id,cancov_2020) %>% unique()
+frag_linear_loss<- frag_linear_loss %>% left_join(temp_id)
+owner_frag_linear_loss_plot_100km <- frag_linear_loss %>%filter(distance_to_coastline < 84000 & cancov_2020 > 4000) %>%  
+  ownership_only_variation_plot()
+owner_frag_linear_loss_plot_45 <- frag_linear_loss %>%filter(point_leve_habitat >45) %>%  
+  ownership_only_variation_plot()
+
+hist(frag_linear_loss$distance_to_coastline)
+#just for the <3500 data
+frag_linear_loss_plot <-interacting_plots(frag_linear_loss35)
+owner_frag_linear_loss_plot <-ownership_only_variation_plot(frag_linear_loss35)
 frag_linear_loss_plot
 # frag_linear_loss_cumalative_plot <- interacting_plots(frag_linear_loss_cumalative)
 # frag_linear_loss_cumalative_plot2 <-  interacting_plots(frag_linear_loss_cumalative2) #hab loss refers to actual AMOUNT of habitat loss. so 0.1 of 2k (or200 ha) = 20hectare, 0.5 = 100ha 
@@ -475,6 +480,18 @@ habitat_ownership <- plot_ownership_distribution(hab_points, "habAmountDich_2000
                                                  "Distribution of Habitat Amount in 2km Buffers by Ownership")
 edge_ownership
 habitat_ownership
+
+#test for 100 m buffers
+edge_ownership100 <- plot_ownership_distribution(hab_points, "edgeRook_100_40",
+                                              x_axis_title = "Proportion Edge Amount (100 m)",
+                                              "Distribution of Edge Amount in 100 m  Buffers by Ownership")
+
+habitat_ownership100 <- plot_ownership_distribution(hab_points, "habAmountDich_100", 
+                                                 x_axis_title = "Proportion Habitat Amount (100 m)",
+                                                 "Distribution of Habitat Amount in 100 m Buffers by Ownership")
+edge_ownership100
+habitat_ownership100
+
 # #=================================================
 # #What does ownership look like close to the coast? 
 # #=================================================
@@ -528,8 +545,20 @@ ggsave(
 
 #ownersip without distance stratification: 
 ggsave(
-  filename = "Figures/ownership_forescasted_frag_with_linear_2km_hab_loss_plot.png",               # File path and name
+  filename = "Figures/ownership_allpoints_forescasted_frag_with_linear_2km_hab_loss_plot.png",               # File path and name
   plot = owner_frag_linear_loss_plot,          
+  width = 16,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                          # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
+#ownersip without distance stratification: 
+ggsave(
+  filename = "Figures/ownership__less100km_forescasted_frag_with_linear_2km_hab_loss_plot.png",               # File path and name
+  plot = owner_frag_linear_loss_plot_100km,          
   width = 16,                            # Width in inches (publication size)
   height = 8,                           # Height in inches (publication size)
   dpi = 300,                          # Resolution for publication (300 DPI)
@@ -728,7 +757,7 @@ ggsave(
 # #GEOM POINT
 #  # Summarize data by OceanYear
 #  summary_data2020 <- predict2020 %>%
-#    filter(point_leve_hab_probability >= 45) %>%  
+#    filter(point_leve_habitat >= 45) %>%  
 #    group_by(OceanYear) %>%
 #    summarize(
 #      mean_occupancy = mean(Occupancy, na.rm = TRUE),   # Mean Occupancy

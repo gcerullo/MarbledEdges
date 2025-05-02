@@ -5,10 +5,13 @@ library(sf)
 library(exactextractr)
 library(data.table)
 library(rnaturalearth)
+library(tidyverse)
+library(summarytools)
 
 #read in inputs ####
-source('scripts/02_OrganiseMurreletData.R')
-
+#source('scripts/02_OrganiseMurreletData.R')
+#rm(pointsInRoiAndSamplingWindow)
+#rm(analysisData)
 #==================================
 #Information on Murrelet survey sites: (Valente 2022)
 #Most surveys were conducted around proposed timber harvest sites with 1 survey station per 8–10 ha.
@@ -41,9 +44,8 @@ ownership <- vect("Rasters/land_ownership/All_merge.shx")
 #organise raster data ####
 
 # Step 1: Load the GNN variables (canopy cover) raster
-can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_2021.tif")
-can_cov_conifer <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_2021.tif")
-
+can_cov_all_trees <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_2020.tif")
+can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif") #canopy cover of conifers
 
 # Step 2: Visualize the GNN variable raster
 plot(can_cov)
@@ -52,42 +54,45 @@ plot(can_cov)
 ext_raster <- ext(can_cov)  # Extent of can_cov
 crs_raster <- crs(can_cov)  # CRS of can_cov
 
-#plot(ownership_cropped)
-
 # Step 4: Load the SDM (Species Distribution Model) 2019 raster
 tif_files <- list.files(path = "Rasters/MAMU_SDMs", pattern = "\\.tif$", full.names = TRUE)
-tif2019 <- tif_files[[32]]  
-SDM2019 <- rast(tif2019)
+tif2020 <- tif_files[[36]]  
+print(tif2020)
+SDM2020 <- rast(tif2020)
 
 # Step 5: Visualize the SDM raster
-plot(SDM2019)
+plot(SDM2020)
 
 # Step 6: Ensure the SDM raster has the same CRS and extent and alignment as the GNN raster (can_cov)
 # Crop SDM to the extent of the can_cov raster
 # Align habitat_binary2 to pen_canopy
-SDM2019 <- resample(SDM2019, can_cov, method = "bilinear")
+SDM2020 <- resample(SDM2020, can_cov, method = "bilinear")
 
 
 # # Step 7: Optionally, check if the CRS of the SDM raster matches the can_cov CRS
 # # If not, you can reproject SDM to match the can_cov CRS
-# if (crs(SDM2019) != crs(can_cov)) {
-#   SDM2019 <- project(SDM2019, crs_raster)
+# if (crs(SDM2020) != crs(can_cov)) {
+#   SDM2020 <- project(SDM2020, crs_raster)
 # }
 # 
 # # Step 8: Ensure the resolution of the SDM raster matches the GNN raster (can_cov)
 # # Compare both x and y resolutions separately
-# if (any(res(SDM2019) != res(can_cov))) {
-#   SDM2019 <- resample(SDM2019, can_cov, method = "bilinear")  # Use resampling if needed
+# if (any(res(SDM2020) != res(can_cov))) {
+#   SDM2020 <- resample(SDM2020, can_cov, method = "bilinear")  # Use resampling if needed
 # }
-# Step 9: Now, both SDM2019 and can_cov are aligned
+# Step 9: Now, both SDM2020 and can_cov are aligned
 # Plot the cropped SDM to confirm the alignment visually
-plot(SDM2019)
+plot(SDM2020)
 plot(can_cov, add = TRUE)  # Overlay the can_cov raster to check alignment
+
+#check write rasters and check in qgis 
+
+ # writeRaster(SDM2020, "Rasters/sdm_mamu2019.tif", overwrite=TRUE)
+ # writeRaster(can_cov, "Rasters/can_cov2019.tif", overwrite=TRUE)
 
 #-------------------------------------------
 #Create stratified points across landscapes
 #-------------------------------------------
-
 
 #generate 500m grid 
 
@@ -110,46 +115,57 @@ grid_vect <- as.polygons(grid_raster)
 # Extract the centroids of each polygon (grid cell)
 grid_points <- centroids(grid_vect)
 
+
 # Plot the original raster and overlay the grid points
 plot(can_cov, main = "Raster with 500 Grid Points")
 #plot(grid_points, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 #plot(grid_points)
 
 
-points_within_non_na <- terra::extract(can_cov, grid_points, na.rm = TRUE, xy = TRUE) %>%  
-  na.omit() 
-points <- vect(points_within_non_na,geom = c("x", "y"), crs = crs(can_cov))
+#only keep points that fall within the murrelets range 
+points_within_non_na <- terra::extract(SDM2020, grid_points, na.rm = TRUE, xy = TRUE) %>%  
+  na.omit() %>%  
+  filter(probability > 0)
+rm()
+  
+points <- vect(points_within_non_na,geom = c("x", "y"), crs = crs(SDM2020))
 
 #get a binary raster of murrelet habitat
 
 
 # Add IDs to the filtered points
-points$id <- paste0(1:nrow(points))
+points$id <- paste0("p", 1:nrow(points))
+points$ID <- NULL
 
-plot(can_cov, main = "Raster with 500m Grid Points")
+
+plot(SDM2020, main = "Raster with 500m Grid Points")
 plot(points, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+
+#writeVector(grid_points, "Vectors/grid_points.shp", overwrite=TRUE)
 
 #====================================
 #Hab amount 
 #======================================
 #define key paramas####
-buffer_sizes <- c(100, 2000)  # Buffer sizes in meters
-buffer_distances <- c(100, 2000)  # Buffer sizes in meters
+buffer_sizes <- c(100, 2000)  # Buffer radius sizes in meters
+buffer_distances <- c(100, 2000)  # Buffer radius sizes in meters
 
 
 # Plot the raster and the filtered valid points
-plot(SDM2019)  # Plot the raster
+plot(SDM2020)  # Plot the raster
 plot(points, add = TRUE, col = "red", pch = 16)  # Overlay the filtered points
 
 #convert SDM to binary habitat or non habitat (>.45 threshold)
-habitat_binary <- ifel(SDM2019 >= 45, 1, 0)
+SDM2020
+
+habitat_binary <- ifel(SDM2020 >= 45, 1, 0)
 
 #extract habitat amount for different buffers of each point: 
 process_extraction <- function(raster, buffer_distances, points) {
   habAmount <- list()
   
   # Ensure points have unique IDs
-  points$id <- paste0("p", 1:nrow(points))
+ # points$id <- paste0("p", 1:nrow(points))
   
   for (buffer_distance in buffer_distances) {
     # Create buffers around each point and retain IDs
@@ -197,9 +213,9 @@ saveRDS(habAmount, "Outputs/PNW_2020_habamount.rds")
 #   4              2                8 =    non-habitat closed canopy
 
 # identify forest edge cells - which are layers with conifer canopy coverage <= 40%
-open_canopy <- ifel(can_cov_conifer <= 4500, 5, 2) #5 is open canopy, 2 is closed canopy
+open_canopy <- ifel(can_cov <= 4000, 5, 2) #5 is open canopy, 2 is closed canopy
 #plot(open_canopy)
-habitat_binary2 <- ifel(SDM2019 >= 45, 8, 4)     #8 is habitat, 4 is non-habitat 
+habitat_binary2 <- ifel(SDM2020 >= 45, 8, 4)     #8 is habitat, 4 is non-habitat 
 #plot(habitat_binary2)
 intermediate_raster <- open_canopy * habitat_binary2
 #plot(intermediate_raster)
@@ -222,6 +238,7 @@ processed_cells <- 0
 #----------------------------------------------------------------
 
 # Set up a global counter for progress tracking
+#NB this code is optimised to run for many points - tho it seems quite slow when running on a few points 
 processed_cells <- 0
 total_cells <- ncell(habitat_and_edge)
 
@@ -260,7 +277,7 @@ boundary_raster <- focal(habitat_and_edge,
                              return(0)  # Not a boundary
                            }
                          }, pad = TRUE)  # Keep padding enabled
-# writeRaster(boundary_raster, "Rasters/v2_intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif",overwrite=TRUE)
+ writeRaster(boundary_raster, "Rasters/v2_intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif",overwrite=TRUE)
 
 # OLD VERSION: 
 #boundary_raster <- focal(habitat_and_edge, w = matrix(c(0, 1, 0, 1, 0, 0, 1, 0, 0), 3, 3), 
@@ -308,12 +325,13 @@ terra::freq(habitat_binary)  #35,735,491 cells of habitat
 
 terra::freq(edgeforesthabitat) # 1085544 cells of habitat that meet an edge  
 1085544/35735491 
+
 #now take only boundary cells that are in murrelet habitat 
 process_extraction_edge <- function(raster, buffer_distances, points) {
   edgeAmount <- list()
   
   # Ensure points have unique IDs
-  points$id <- paste0("p", 1:nrow(points))
+#  points$id <- paste0("p", 1:nrow(points))
   
   for (buffer_distance in buffer_distances) {
     # Create buffers around each point and retain IDs
@@ -396,19 +414,18 @@ hist(edge_df$edgeRook_2000_40)
 
 # Combine habitat and edge data
 all_df <- hab_df %>% left_join(edge_df)   
- 
 
-#Get which points are actually in murrelet habitat 
-point_level_habitat <- terra::extract(SDM2019, points) %>%  
-  rename(point_leve_hab_probability = probability, 
-         point_id = ID) %>%  
-        mutate(point_id = as.character(point_id)) %>% 
-  mutate(point_id =  paste0("p",point_id))
 
-all_df <- all_df %>%left_join(point_level_habitat)
+#get points with ID and xy coords as dataframe
+point_df <- as.data.frame(points, geom = "xy") %>%  
+  rename(point_id = id, 
+         point_leve_habitat = probability)
+
+all_df <- all_df %>%left_join(point_df, by = "point_id")
+#!!!!!!!!!!!!!!!
 
 #average edge in good habitat
-all_df %>% filter(point_leve_hab_probability >=45) %>%  
+all_df %>% filter(point_leve_habitat >=45) %>%  
   summarise(meanEdge = mean(edgeRook_2000_40))
 
 #====================================
@@ -451,9 +468,7 @@ closest_distances <- apply(distance_to_coastline, 2, min, na.rm = TRUE)
 # Create a data frame with Point ID and Distance to Coastline
 distance_df <- data.frame(
   point_id = points$id,  
-  distance_to_coastline = closest_distances) %>%  
-  mutate(point_id =  paste0("p",point_id))
-
+  distance_to_coastline = closest_distances) 
 
 #add distance (m) to all_df 
 all_df <- all_df %>% left_join(distance_df)
@@ -474,8 +489,8 @@ unique(ownership$Own_simple)
 
 
 # Set the raster resolution (to rasterise shapefile)
-resolution <- 30  # Set a suitable resolution for your analysis
-# Create an empty raster template with the same extent and CRS as your SpatVector
+resolution <- 30  # Set a suitable resolution for  analysis
+# Create an empty raster template with the same extent and CRS as  SpatVector
 unique(ownership$Own_simple)
 ownership_raster_template <- terra::rast(ownership,
                                          resolution = resolution)
@@ -485,6 +500,11 @@ ownership_raster_pj <- terra::project(ownership_raster, crs_raster) #match crs
 # Resample ownership_raster to match the resolution of can_cov
 ownership_raster_resampled <- terra::resample(ownership_raster_pj, can_cov, method = "near")
 plot(ownership_raster_resampled)
+
+plot
+
+writeRaster(ownership_raster_resampled, "Rasters/test_reprojected_ownership.tif")
+
 #now extract the points 
 extracted_ownership_values <- terra::extract(ownership_raster_resampled, points, bind = TRUE) %>% 
   as.data.frame() %>% 
@@ -499,21 +519,244 @@ saveRDS(extracted_ownership_values, "Outputs/ownership_random_points_pnw.rds")
 ## saveRDS(ownership_data, "Outputs/ownership_random_points_pnw.rds")
 ## .........................
 
+#--------------------------------
+#finally add information on canopy cover so that we can use a forest/non-forest mask to filter points 
+#now extract the points 
+can_cov_all_trees
+points
+extracted_cancov_values <- terra::extract(can_cov_all_trees, points, bind = TRUE) %>% 
+  as.data.frame() %>% 
+  select(id, cancov_2020) %>%  
+  rename(point_id =  id) 
 
+# writeRaster(can_cov_all_trees, "Rasters/test_cancov_alltrees.tif")
+plot(can_cov, main = "Canopy Cover")
+plot(points, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 #====================================
-#finally assembly and scaling of data ####
+#final assembly and scaling of data ####
 #====================================
 ownership_data <- readRDS("Outputs/ownership_random_points_pnw.rds") %>%  
-  mutate(point_id =  paste0("p",id)) 
+  rename(point_id =  id) 
 
-all_df <- all_df %>% left_join(ownership_data)
+all_df <- all_df %>% left_join(ownership_data) %>%  left_join(extracted_cancov_values)
+dfSummary(all_df) #ownership (32% points miss data;  cancov_2020   20% of points miss data 
+
+ownership_NAs <- all_df %>% filter(!is.na(ownership)) 
+# Convert to SpatVector
+ownership_NAs_vect <- vect(ownership_NAs, geom = c("x", "y"), crs = "EPSG:5070")
+
+# Set up a 1-row, 2-column plotting layout
+par(mfrow = c(1, 2))
+# Plot the raster
+plot(ownership_raster_resampled, main = "Ownership Raster")
+# Plot the vector
+plot(ownership_NAs_vect, main = "Ownership Vector", add = FALSE)
+# Reset plotting layout (optional)
+par(mfrow = c(1, 1))
+
+#remove points we don't have ownership or canopy cover data for 
+final2020 <- all_df %>% 
+filter(!is.na(ownership)) %>%  
+  filter(!is.na(cancov_2020)) 
 
 
-#what proportion of murrelet habitat is edgey? 
-all_df %>% 
-  filter(point_leve_hab_probability >= 45) %>%  
-  summarise(median_edge2000 = mean(edgeRook_2000_40))
+#quickly summarise data #### (can read in final2020 at bottom)
 
-final2020 <- all_df
 
+quickplotSummaryMedianSD <- function(x, plot_title = "Median and Standard Deviation for Each Variable") {
+  
+  quickplotSummary <- x %>%
+    group_by(ownership) %>%
+    summarise(
+      across(
+        c(habAmountDich_100, habAmountDich_2000, edgeRook_100_40, edgeRook_2000_40, point_leve_habitat),
+        list(median = median, sd = sd),
+        .names = "{.col}_{.fn}"
+      )
+    ) %>%
+    pivot_longer(
+      cols = -ownership,
+      names_to = c("variable", "stat"),
+      names_pattern = "(.*)_(median|sd)",
+      values_to = "value"
+    ) %>%
+    pivot_wider(
+      names_from = stat,
+      values_from = value
+    )
+  
+  # plot summaries
+  ggplot(quickplotSummary, aes(x = ownership, y = median, color = ownership)) +
+    geom_point(size = 3) +
+    geom_errorbar(aes(ymin = median - sd, ymax = median + sd), width = 0.2) +
+    facet_wrap(~ variable, scales = "free_y") +
+    labs(
+      title = plot_title,
+      x = "Ownership",
+      y = "Median ± SD"
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none"
+    )
+}
+
+allpoints_median <- quickplotSummaryMedianSD(final2020, plot_title = "All Points: Median and SD")
+
+allforest_median <- quickplotSummaryMedianSD(
+     final2020 %>% filter(cancov_2020 > 0),
+
+    plot_title = "Forest Points : Median and SD")
+
+allhabpoints_median <- quickplotSummaryMedianSD(
+  final2020 %>% filter(point_leve_habitat > 45),
+  plot_title = "Habitat > 45: Median and SD"
+)
+allhab100kmpoints_median <- quickplotSummaryMedianSD(
+  final2020 %>% filter(point_leve_habitat > 45, distance_to_coastline < 100000),
+  plot_title = "Habitat > 45 & <100km from Coast: Median and SD"
+)
+
+
+#With 95% CI 
+quickplotSummaryMean95 <- function(x, plot_title = "Mean and 95% CI for Each Variable") {
+  
+  quickplotSummary <- x %>%
+    filter(!ownership == "Unknown") %>% 
+    group_by(ownership) %>%
+    summarise(
+      across(
+        c(habAmountDich_100, habAmountDich_2000, edgeRook_100_40, edgeRook_2000_40, point_leve_habitat),
+        list(
+          mean = mean,
+          sd = sd,
+          n = ~n()
+        ),
+        .names = "{.col}_{.fn}"
+      )
+    ) %>%
+    pivot_longer(
+      cols = -ownership,
+      names_to = c("variable", "stat"),
+      names_pattern = "(.*)_(mean|sd|n)",
+      values_to = "value"
+    ) %>%
+    pivot_wider(
+      names_from = stat,
+      values_from = value
+    ) %>%
+    mutate(
+      lower_ci = mean - 1.96 * (sd / sqrt(n)),
+      upper_ci = mean + 1.96 * (sd / sqrt(n))
+    )
+  
+  # plot summaries with 95% CI
+  ggplot(quickplotSummary, aes(x = ownership, y = mean, color = ownership)) +
+    geom_point(size = 3) +
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2) +
+    facet_wrap(~ variable, scales = "free_y") +
+    labs(
+      title = plot_title,
+      x = "Ownership",
+      y = "Mean ± 95% CI"
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none"
+    )
+}
+
+allpoints_mean <- quickplotSummaryMean95(final2020, plot_title = "All Points: Mean and 95% CI")
+
+allhabpoints_mean <- quickplotSummaryMean95(
+  final2020, #%>% filter(point_leve_habitat > 45),
+  plot_title = "AllPoints: Mean and 95% CI"
+)
+
+allforest_meanDistanceOnly <- quickplotSummaryMean95(
+  final2020 %>% filter( distance_to_coastline < 100000),
+  #final2020 %>% filter(cancov_2020 > 4000),
+  plot_title = "AllPoints <84km : Mean and 95% CI")
+
+allforest_meanDistanceOnlyCanCov <- quickplotSummaryMean95(
+  final2020 %>% filter( distance_to_coastline < 84000, cancov_2020 >0),
+  #final2020 %>% filter(cancov_2020 > 4000),
+  plot_title = "Forest Points (>0% canopy) <84km : Mean and 95% CI")
+
+cowplot::plot_grid(allforest_meanDistanceOnly,allforest_meanDistanceOnlyCanCov)
+
+allhab100kmpoints_mean <- quickplotSummaryMean95(
+  final2020 %>% filter(point_leve_habitat > 45, distance_to_coastline < 100000),
+  plot_title = "Habitat > 45 & <100km from Coast: Mean and 95% CI"
+)
+
+allpoints_mean
+allhabpoints_mean
+allforest_mean
+allhab100kmpoints_mean
+  #  filter(distance_to_coastline < 100000) %>% 
+  #filter(point_leve_habitat > 0) %>%
+
+#--------------------------------------------------------------------------------
+#Senstivity Analaysis: - how much binary murrelet habitat falls inside of each landownership shapefile 
+ownership
+habitat_binary
+#only need to run once
+#habitat_binary_ownership_proj <- project(habitat_binary, crs(ownership))
+#writeRaster(habitat_binary_ownership_proj, "SDM2020_binary_reprojected_to_ownership.tif", overwrite = TRUE)
+
+# Verify CRS alignment
+habitat_binary_ownership_proj
+ownership 
+habitat_binary_ownership_proj
+plot(habitat_binary_ownership_proj)
+plot(ownership)
+
+ownership_sf <- st_as_sf(ownership)
+
+# a bit of
+single_polygon <- ownership_sf[i, ]
+plot(single_polygon)
+# Use the 'frac' operation to get fractional cover of habitat/non-habitat within each ownership shapefile
+
+# Pre-allocate the list to the number of polygons
+frac_results_list <- vector("list", nrow(ownership_sf))
+
+# Loop over each polygon (shapefile) and compute fractional cover
+for (i in seq_len(nrow(ownership_sf))) {
+  # Extract the polygon
+  single_polygon <- ownership_sf[i, ]
+  
+  # Compute fractional cover for this polygon
+  frac_result <- exact_extract(habitat_binary_ownership_proj, single_polygon, "frac")
+  
+  # Store the result in the pre-allocated list
+  frac_results_list[[i]] <- data.frame(polygon_id = i, frac_result)
+  
+  # Optional: Print progress
+  if (i %% 100 == 0) cat("Processed", i, "polygons\n")
+}
+
+
+frac_results <- do.call(rbind, filtered_list)
+
+frac_results <- exact_extract(habitat_binary_ownership_proj, ownership_sf, "frac")
+saveRDS(frac_results, "frac_cover_by_ownership_shp.rds")
+#collapse into one 
+
+
+#extract habitat amount for each ownership shapefile 
+
+
+
+#EXPORT OUTPUT #####
 saveRDS(final2020, "PNW_2020_extracted_covars.rds")
+#read in for quick plotting 
+#final2020 <- read.csv("PNW_2020_extracted_covars.csv")
+
+#test what's happening in Qgis
+#write.csv(final2020, "PNW_2020_extracted_covars.csv")
+#writeRaster(ownership_raster_resampled, "Rasters/ownership_raster_resampled.tif", overwrite=TRUE)
+

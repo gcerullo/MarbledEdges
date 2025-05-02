@@ -45,61 +45,7 @@ error <- 0.0002 # +/- tiny error
 #--------------------------------------------------------------------------------
 #Build starting landscapes ####
 #-------------------------------------------------------------------------------------
-#NB; these vary in the amounts of historical clearance, 
-#and in the age of remaining forest at the scenario start 
 
-{# {
-#   #High historical clearance landscapes 
-#   HighCl_young <-  tibble(
-#     age = c(0, 90),
-#     habitat = c("clearcut", "forest"),
-#     area = c(landscape_size_ha*0.5, landscape_size_ha*0.5), 
-#     startingL = "HighCl_young") 
-#   
-#   HighCl_medium <- tibble(
-#     age = c(0, 150),
-#     habitat = c("clearcut", "forest"),
-#     area = c(landscape_size_ha*0.5, landscape_size_ha*0.5),
-#     startingL = "HighCl_medium")
-#   
-#   HighCl_old <- tibble(
-#     age = c(0, 300),
-#     habitat = c("clearcut", "forest"),
-#     area = c(landscape_size_ha*0.5, landscape_size_ha*0.5),
-#     startingL = "HighCl_old")
-#   
-#   #Medium historical clearance landscapes
-#   MedCl_young <-  tibble(
-#     age = c(0, 90),
-#     habitat = c("clearcut", "forest"),
-#     area = c(landscape_size_ha*0.25, landscape_size_ha*0.75), 
-#     startingL = "MedCl_young") 
-#   
-#   MedCl_medium <- tibble(
-#     age = c(0, 150),
-#     habitat = c("clearcut", "forest"),
-#     area = c(landscape_size_ha*0.25, landscape_size_ha*0.75), 
-#     startingL = "MedCl_medium")
-#   
-#   MedCl_old <- tibble(
-#     age = c(0, 300),
-#     habitat = c("clearcut", "forest"),
-#     area = c(landscape_size_ha*0.25, landscape_size_ha*0.75), 
-#     startingL = "MedCl_old")
-#   
-#   #No historical clearance landscapes 
-#   NoCl_young <-  tibble(
-#     age = c(90),
-#     habitat = "forest",
-#     area = landscape_size_ha, 
-#     startingL = "NoCl_young") 
-# 
-# NoCl_medium <- tibble(
-#   age = c(150),
-#   habitat = "forest",
-#   area = landscape_size_ha, 
-#   startingL = "NoCl_medium")
-}  
   NoCl_old <- tibble(
     age = c(300),
     habitat = "forest",
@@ -107,9 +53,7 @@ error <- 0.0002 # +/- tiny error
     startingL = "NoCl_old")
   
   # Combine all tibbles into a single dataframe called startingL
-  startingL <- bind_rows(#HighCl_young, HighCl_medium, HighCl_old, 
-                         #MedCl_young, MedCl_medium, MedCl_old, 
-                         # NoCl_young, NoCl_medium,
+  startingL <- bind_rows(
                          NoCl_old)
 
 
@@ -286,13 +230,13 @@ noCL_results   <- determine_relative_production_targets(noCL_scenarios, producti
 
 #only keep scenarios that are fully from intensive + R (ie sparing only for different production target)
 sparing <- noCL_results %>% ungroup %>%filter(E == 0) %>%  dplyr::select(R, I, age, startingL, totalScenario_m3, production_target, composition)
-sparing 
+
 
 #-------------------------------------------------------------------------------------------
 #generate spatially explicit raster #### 
 #-------------------------------------------------------------------------------------------
-#lets start with a medium production target of 0.55 (26.9% forest,77.1% plantation) - view(sparing)
-
+#For a given production target see what combination of Reserve and Plantation you would need to meet the target
+print(sparing) # we select P = 0.24 an P=0.58 
 #------------------------------------------------------
 #loop through different patch sizes
 
@@ -303,10 +247,12 @@ sparing
 # Define the number of plantation cells (70% of total area)
 nrows = 1000
 ncols = 1000
-total_area <-nrows*ncols #landscaoe is 1Mha and made up of 100m2 pixels 
+total_area <-nrows*ncols #landscaoe is 1Mha and made up of 100m2 (1ha) pixels 
+
 #Note - if i wanted 1mha made up of 30m^2 cells that would be 3333.33 x 3333.33 cells. 
 #Might want to do this as we are using 100m edge density as a predictor so min cell size may need to be < 100x100
-
+nrows = 3333
+ncols = 3333
 generate_landscape <- function(prop_plantation_cells, total_area, num_steps = 4000, step_size = 250) {
   # Create an empty list to store the rasters
   raster_list <- list()
