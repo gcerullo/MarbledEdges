@@ -56,16 +56,28 @@ min(PC1$Value_scaled)
 
 PC1_quantiles <-  PC1 %>%
   summarise(
+    q05 = quantile(`Value_scaled`, 0.05),
     q10 = quantile(`Value_scaled`, 0.1),
+    q20 = quantile(`Value_scaled`, 0.2),
     q50 = quantile(`Value_scaled`, 0.5),
-    q90 = quantile(`Value_scaled`, 0.9)
+    q80 = quantile(`Value_scaled`, 0.5),
+    q90 = quantile(`Value_scaled`, 0.9),
+    q95 = quantile(`Value_scaled`, 0.95) 
   )
 
-#visualise data #### 
+# Visualize data with quantiles
 PC1 %>%  
   ggplot(aes(x = Year, y = Value_scaled, group = 1)) +  # Set group = 1 for all data points
   geom_line(color = "#2c7fb8", linewidth = 1) +  # Line plot with custom color
   geom_point(color = "#d95f0e", size = 3) +      # Points with custom color
+  geom_hline(yintercept = PC1_quantiles$q05, linetype = "dotted", color = "red", size = 0.8) +  # Q10
+  geom_hline(yintercept = PC1_quantiles$q10, linetype = "dotted", color = "pink", size = 0.8) +  # Q10
+  geom_hline(yintercept = PC1_quantiles$q20, linetype = "dotted", color = "orange", size = 0.8) +  # Q20
+  geom_hline(yintercept = PC1_quantiles$q50, linetype = "dotted", color = "green", size = 0.8) + # Median (Q50)
+  geom_hline(yintercept = PC1_quantiles$q80, linetype = "dotted", color = "lightblue", size = 0.8) +  # Q90
+  geom_hline(yintercept = PC1_quantiles$q90, linetype = "dotted", color = "blue", size = 0.8) +  # Q90
+  geom_hline(yintercept = PC1_quantiles$q95, linetype = "dotted", color = "black", size = 0.8) +  # Q90
+  
   theme_minimal(base_size = 14) +               # Clean minimal theme
   labs(
     title = "Scaled and inverted PCA1 Scores Over Time (high = good year)",
@@ -77,7 +89,6 @@ PC1 %>%
     axis.text = element_text(size = 12),
     axis.title = element_text(size = 14)
   )
-
 #Oregon nest and murrelet data
 
 

@@ -26,164 +26,213 @@ print(presence_absence_summary)
       #Structure is as follows: ~ detection predictors ~ occupancy predictors
       #The first ~: Defines covariates for detection probability (p).
       #The second ~: Defines covariates for occupancy probability (ψ).
+#Fit occupancy models 
 
-# Step 2: Simple Detection Model
+# Load required libraries for data manipulation and occupancy modeling
+library(tidyverse)
+library(unmarked)
+library(terra)
+library(ggcorrplot)
+library(AICcmodavg)
+
+#read in unmarked object
+analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
+
+generate_starts <- function(previous_model, new_terms, new_terms_starts) {
+  # Extract coefficients from the previous model
+  prev_coefs <- coef(previous_model)
+  
+  # Ensure new terms and their starts are the same length
+  if (length(new_terms) != length(new_terms_starts)) {
+    stop("Length of new_terms must match the length of new_terms_starts.")
+  }
+  
+  # Create named vector for new terms
+  new_coefs <- setNames(new_terms_starts, new_terms)
+  
+  # Combine previous coefficients and new initialized values
+  c(prev_coefs, new_coefs)
+}
+
+# Model 1: Simple Detection Model
 # --------------------------------
-# This model only includes detection covariates. Site occupancy is assumed constant (~1).
-start_time <- Sys.time()
 simple_detection_model <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 1,
+  formula = ~ ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + 
+    scaleDoy + scaleDoy2 ~ 1,
   data = analysisData
 )
-print(Sys.time() - start_time)  # Print runtime
 
 plogis(-1.7) # baseline occupancy is about 15% (need to transform back to native scale; as outcome is on logit scale)
 
-# Step 3: Adding a Site Covariate - Distance to Coast
-# ---------------------------------------------------
-# Introduce `scaleCoastDist` and PC1 in year t-1 as a site covariate to explain occupancy.
-dist_model <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 # detection
-  ~ PC1_t1 + scaleCoastDist,  # occupancy
-                                                                       
-  data = analysisData,
-  starts = c(
-    coef(simple_detection_model)[1],  # Occupancy intercept - we use baseline occ from prev model
-    0,0,                                 # Placeholder for new occupancy covariate (`scaleCoastDist`)
-    coef(simple_detection_model)[2:10] # Detection coefficients for the 9 detection coefficients 
-  ))
-  
 
-# Step 5: introduce Habitat Amount and Edge Metrics at Multiple Scales
-# ------------------------------------------------------------
-# Add site-level habitat amount and edge density metrics at both 100m and 2000m scales.
-start_time <- Sys.time()
-model_with_habitat <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-    PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + scaleHabAmount2000 + scaleEdgeDens2000,
-  data = analysisData,
-  starts = c(
-    coef(dist_model)[1:3],
-    rep(0, 4),
-    coef(dist_model)[4:12])
+# Model 2: Adding Distance to Coast
+# -----------------------------------
+new_terms_dist <- c("PC1_t1", "scaleCoastDist")
+#set vaguely informative starts based on hypothesis
+new_terms_starts <- c(0, 0) #hypothesis; positive effect of good ocean year; negative effect of dist to coast
+
+starts_dist_model <- generate_starts(
+  previous_model = simple_detection_model, 
+  new_terms = new_terms_dist,
+  new_terms_starts = new_terms_starts 
 )
-print(Sys.time() - start_time)
 
-# Save updated results
-#save(list = ls(), file = 'Models/ManuscriptResults.RData')
+dist_model <- occu(
+  formula = ~ ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + 
+    scaleDoy + scaleDoy2 ~ PC1_t1 + scaleCoastDist, 
+  data = analysisData, 
+  starts = starts_dist_model
+)
+coef(dist_model)
 
-# Step 6: Adding Habitat-Edge Interactions
-# -----------------------------------------
-# Include interaction terms between habitat amount and edge density metrics at both scales.
-start_time <- Sys.time()
-model_with_interactions <- occu(
+
+# Model 3: Adding Habitat and Edge Metrics
+# ----------------------------------------
+new_terms_habitat <- c("scaleHabAmount100", "scaleEdgeDens100", 
+                       "scaleHabAmount2000", "scaleEdgeDens2000")
+new_terms_starts <- c(0, 0, 0, 0) #hypothesis; negative effect of landscape-level edge; all else-positive 
+
+starts_habitat <- generate_starts(
+  previous_model = dist_model, 
+  new_terms = new_terms_habitat, 
+  new_terms_starts = new_terms_starts
+)
+
+model_with_habitat <- occu(
+  formula = ~ ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + 
+    scaleDoy + scaleDoy2 ~ PC1_t1 + scaleCoastDist + scaleHabAmount100 + 
+    scaleEdgeDens100 + scaleHabAmount2000 + scaleEdgeDens2000, 
+  data = analysisData, 
+  starts = starts_habitat
+)
+
+# Model 4: interaction between edge and amount
+# ----------------------------------------
+new_terms_edge_amount <- c("scaleHabAmount100 * scaleEdgeDens100",
+                           "scaleHabAmount2000 * scaleEdgeDens2000")
+new_terms_starts <- c(0,0)
+starts_edge_amount <- generate_starts(
+  previous_model = model_with_habitat, 
+  new_terms = new_terms_edge_amount, 
+  new_terms_starts = new_terms_starts
+)
+
+##TEST: 
+model_edge_amount_interactions <- occu(
   formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
     PC1_t1 + scaleCoastDist + scaleHabAmount100 + scaleEdgeDens100 + scaleHabAmount100 * scaleEdgeDens100 + 
     scaleHabAmount2000 + scaleEdgeDens2000 + scaleHabAmount2000 * scaleEdgeDens2000,
   data = analysisData,
-  starts = c(coef(model_with_habitat)[1:7],
-          rep(0,2),
-          coef(model_with_habitat)[8:16]))
+  starts = starts_edge_amount)
 
-print(Sys.time() - start_time)
 
-# Save results for interaction model
-#save(list = ls(), file = 'Models/ManuscriptResults.RData')
-# 
-# # Step 7: Adding PC1 and Edge Interactions
-# # ------------------------------------------------------
-# Explore interactions between `scaleCoastDist` and edge density metrics - how important is distance in modulating
-#species' responses to edges .
-start_time <- Sys.time()
-coastal_interaction_model <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~
-    PC1_t1 + scaleCoastDist  + scaleHabAmount100 + scaleEdgeDens100 + scaleCoastDist * scaleEdgeDens100 +
-    scaleHabAmount2000 + scaleEdgeDens2000 + scaleCoastDist * scaleEdgeDens2000,
-  data = analysisData,
-  starts = coef(model_with_interactions)  # Use previous model's coefficients
+# Model 5: Adding interaction between PC1 and 2km edge density 
+# -----------------------------------------
+new_terms_pc1_interactions <- c("scaleEdgeDens2000:PC1_t1")
+new_terms_starts <- c(0) 
+starts_pc1_interactions <- generate_starts(
+  previous_model = model_with_habitat, 
+  new_terms = new_terms_pc1_interactions,
+  new_terms_starts = new_terms_starts
 )
-print(Sys.time() - start_time)
 
-# Save results
-#save(list = ls(), file = 'Models/ManuscriptResults.RData')
-print(coastal_interaction_model)
-# Step 8: Adding Interactions with PCA1
-# ---------------------------------------
-# Incorporate `PC1` as a site covariate and include interaction terms with edge density.
-start_time <- Sys.time()
+length(starts_pc1_interactions)
 pc1_interaction_model <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-    PC1_t1 + scaleCoastDist  + 
-    scaleHabAmount100 + scaleEdgeDens100 +
-    scaleHabAmount2000 + scaleEdgeDens2000 + 
-    scaleEdgeDens100 * PC1_t1+
-    PC1_t1 * scaleEdgeDens2000,
-  data = analysisData,
-  starts = c(coef(coastal_interaction_model))
+  formula = ~ ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + 
+    scaleDoy + scaleDoy2 ~ PC1_t1 + scaleCoastDist + scaleHabAmount100 + 
+    scaleEdgeDens100  + scaleHabAmount2000 + scaleEdgeDens2000 + 
+    scaleEdgeDens2000*PC1_t1, 
+  data = analysisData, 
+  starts = starts_pc1_interactions
 )
-print(Sys.time() - start_time)
 
+# Model 5: Adding interaction between PC1 and 2km edge density & PC1_t1:scaleCoastDist
 
-#Step 9: Adding a 3 way interaction (distance*PC1*edge2000) 
-length(coef(pc1_interaction_model))
-
-start_time <- Sys.time()
-multiple_interaction_model <- occu(
-  formula = ~ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + scaleDoy + scaleDoy2 ~ 
-    PC1_t1 + scaleCoastDist  + 
-    scaleHabAmount100 + scaleHabAmount2000 + 
-    scaleEdgeDens100 + scaleEdgeDens2000 +
-    scaleCoastDist * scaleEdgeDens2000 * PC1_t1,
-  data = analysisData,
-  starts = c(coef(pc1_interaction_model),0,0)
+new_terms_PC1_two_way <- c("scaleEdgeDens2000:PC1_t1", "PC1_t1:scaleCoastDist")
+new_terms_starts <- c(0, 0) 
+starts_PC1_two_way <- generate_starts(
+  previous_model = model_with_habitat, 
+  new_terms = new_terms_PC1_two_way,
+  new_terms_starts = new_terms_starts
 )
-print(Sys.time() - start_time)
 
-# Save results
-#save(list = ls(), file = 'Models/ManuscriptResults.RData')
+PC1_two_way <-  occu(
+  formula = ~ ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + 
+    scaleDoy + scaleDoy2 ~ PC1_t1 + scaleCoastDist + scaleHabAmount100 + 
+    scaleEdgeDens100  + scaleHabAmount2000 + scaleEdgeDens2000 + 
+    scaleEdgeDens2000*PC1_t1 + PC1_t1*scaleCoastDist,
+  data = analysisData, 
+  starts = starts_PC1_two_way
+)
 
-#test for overfitting 
 
+# Model 6: Adding interaction between PC1 and 2km edge, PC1_t1:scaleCoastDist & scaleCoastDist:scaleEdgeDens2000
+new_terms_multiple_two_way <- c("PC1_t1:scaleCoastDist", "scaleCoastDist:scaleEdgeDens2000","PC1_t1:scaleEdgeDens2000")
+new_terms_starts <- c(0,0,0) 
+starts__multiple_two_way <- generate_starts(
+  previous_model = model_with_habitat, 
+  new_terms = new_terms_multiple_two_way,
+  new_terms_starts = new_terms_starts
+)
 
-# which is the best model?
-model_list <- fitList(model_with_interactions, multiple_interaction_model, pc1_interaction_model)
+multiple_two_way <-  occu(
+  formula = ~ ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + 
+    scaleDoy + scaleDoy2 ~ PC1_t1 + scaleCoastDist + scaleHabAmount100 + 
+    scaleEdgeDens100  + scaleHabAmount2000 + scaleEdgeDens2000 + 
+    scaleEdgeDens2000*PC1_t1 +scaleCoastDist*scaleEdgeDens2000 + PC1_t1*scaleCoastDist,
+  data = analysisData, 
+  starts = starts__multiple_two_way
+)
 
-model_list_all <- fitList(simple_detection_model,dist_model,model_with_habitat, model_with_interactions,
-                          coastal_interaction_model,
-                          pc1_interaction_model,multiple_interaction_model)
+# Model 7: Adding a three-way interaction between scaleCoastDist * scaleEdgeDens2000 * PC1_t1, 
 
-model_list_subs <- fitList(pc1_interaction_model, coastal_interaction_model, multiple_interaction_model) 
+# -----------------------------------
+new_terms_threeway <- c("scaleEdgeDens2000:PC1_t1",
+                        "scaleCoastDist:scaleEdgeDens2000",
+                        "PC1_t1:scaleCoastDist",
+                        "scaleEdgeDens2000:PC1_t1:scaleCoastDist")
 
-modSel(model_list)
+new_terms_starts <- c(0, 0, 0, 0)
+starts_threeway <- generate_starts(
+  previous_model = model_with_habitat, 
+  new_terms = new_terms_threeway,
+  new_terms_starts = new_terms_starts
+)
+
+threeway_interaction_model <- occu(
+  formula = ~ ownership + scaleCanopy100 + scaleConDens100 + scaleEdgeDens100 + 
+    scaleDoy + scaleDoy2 ~
+    PC1_t1 + scaleCoastDist +
+    scaleHabAmount100 +   scaleEdgeDens100 + 
+    scaleHabAmount100 + scaleHabAmount2000+
+    scaleCoastDist * scaleEdgeDens2000 * PC1_t1, 
+  data = analysisData, 
+  starts = starts_threeway
+)
+
+#Compare model performance 
+
+model_list_all <- fitList(simple_detection_model,dist_model,model_with_habitat, model_edge_amount_interactions, 
+                          pc1_interaction_model,PC1_two_way, multiple_two_way,threeway_interaction_model)
+
 modSel(model_list_all)
-modSel(model_list_subs)
 
-multiple_interaction_model
-WHY_multiple_interaction_model <- readRDS("Models/pc1_3way_v2_interaction_model.rds")
-WHY_pc1_interaction_model <- readRDS("Models/pc1_interaction_model.rds")
-WHY_pc1_interaction_model
-pc1_interaction_model
+#------------------------------------------------------------------
+#Compare by K-fold cross validation for the 4 best-performing models
+#------------------------------------------------------------------
 
-save(list = ls(), file = 'Models/TESTManuscriptResults.RData')
+#define the kfold cross-validation for 1-way interaction model
 
-
-#compare ALL models
-
-#test for overfitting: 
-
-#check I am not overfitting 
-#define the kfold cross-validation for 1-way interaction model 
-
-#kfolds coastal 
-k_fold_results_coastal <- crossVal(
-  object = coastal_interaction_model     ,    # Your fitted model
+# Define the k-fold cross-validation Model 1 
+k_fold_results_modelwithhabitat <- crossVal(
+  object = model_with_habitat,    # Your fitted model
   method = "Kfold",                       # Specify k-fold validation
   folds = 10,                             # Number of folds (can adjust as needed)
   statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
   parallel = FALSE)
 
+# Define the k-fold cross-validation Model 2 
 
-# Define the k-fold cross-validation
 k_fold_results_pc1 <- crossVal(
   object = pc1_interaction_model,    # Your fitted model
   method = "Kfold",                       # Specify k-fold validation
@@ -191,24 +240,41 @@ k_fold_results_pc1 <- crossVal(
   statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
   parallel = FALSE)
 
+# Define the k-fold cross-validation Model 3 
 
-# Define the k-fold cross-validation for 2-way model 
-k_fold_results <- crossVal(
+# Define the k-fold cross-validation
+k_fold_results_multiple_two_way <- crossVal(
+  object = multiple_two_way,    # Your fitted model
+  method = "Kfold",                       # Specify k-fold validation
+  folds = 10,                             # Number of folds (can adjust as needed)
+  statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
+  parallel = FALSE)
+
+
+# Define the k-fold cross-validation model 4 
+k_fold_results_threeway_interaction <- crossVal(
   object = multiple_interaction_model,    # Your fitted model
   method = "Kfold",                       # Specify k-fold validation
   folds = 10,                             # Number of folds (can adjust as needed)
   statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
   parallel = FALSE)
 
-# View results - seems like there is not much difference in model performance in terms of RMSE and MAE 
-print(k_fold_results_coastal)
+# View results - seems like there is not much difference in model performance in terms of RMSE and MAE
+print(k_fold_results_modelwithhabitat)
 print(k_fold_results_pc1)
-print(k_fold_results)
+print(k_fold_results_multiple_two_way)
+print(k_fold_results_multiple_interaction)
+
+kfold_list <- list(k_fold_results_modelwithhabitat,k_fold_results_pc1,k_fold_results_multiple_two_way,k_fold_results_multiple_interaction)
+
+#Save outputs
+#save K-fold cross-validation performance 
+saveRDS(kfold_list, "Models/Kfold_model_performance.rds")
+
+#save best-performing model 
+saveRDS(multiple_two_way, "final_model_5thMay2025.rds" )
 
 
-# Save final results
-save(list = ls(), file = 'Models/ManuscriptResults.RData')
-saveRDS(pc1_interaction_model,"Models/pc1_interaction_model.rds")
-saveRDS(multiple_interaction_model,"Models/pc1_3way_v2_interaction_model.rds")
+
 
 
