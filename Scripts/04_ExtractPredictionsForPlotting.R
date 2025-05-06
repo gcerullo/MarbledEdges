@@ -35,10 +35,14 @@ edge_values <- seq(
   length.out = 100
 )
 
-
+q05 <- PC1_quantiles %>% pull(q10)
 q10 <- PC1_quantiles %>% pull(q10)
+q20 <- PC1_quantiles %>% pull(q20)
 q50 <- PC1_quantiles %>% pull(q50)
+q80 <- PC1_quantiles %>% pull(q80)
 q90 <- PC1_quantiles %>% pull(q90)
+q95 <- PC1_quantiles %>% pull(q95)
+
 
 pc1_levels <- c(q10,
                 #q50,
