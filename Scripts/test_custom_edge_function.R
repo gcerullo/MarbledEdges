@@ -1,22 +1,13 @@
 #test my approach to calculating cells that share a boundary in NSEW direction with a different class value
 
-# Create a small simulated raster (5x5) for testing purposes showing closed canopy habitat (1) and open non-habitat (2)
-raster_data <- matrix(c(
-  1, 1, 1, 0, 0,0,0,1,0,0,0,1,NA,
-  1, 1, 1, 0, 0,0,0,0,0,0,0,0,0,
-  1, 0, 1, 1, 0,0,0,0,0,1,0,0,0,
-  0, 1, 1, 1, 1,0,0,0,NA,0,0,1,0,
-  0, 0, 1, 1, 1,0,0,0,1,0,0,0,0
-), nrow = 5, byrow = TRUE)
 
-
-# Create a small simulated raster (5x5) for testing purposes showing closed canopy habitat (1) and open non-habitat (2)
+# Create a small simulated raster for testing purposes showing closed canopy habitat (1) and open non-habitat (2)
 raster_data <- matrix(c(
   0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,
-  0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,
-  0, 0, 1, 0, 0,0,0,0,0,0,1,0,0,
-  0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,
-  0, 0, 0, 0, 0,0,0,0,0,0,0,0,0
+  0, 0, 0, 0, 0,0,0,1,0,0,0,0,1,
+  0, 0, 1, 0, 0,0,1,1,1,0,1,0,0,
+  0, 0, 0, 0, 0,1,1,1,0,0,0,0,0,
+  0, 0, 0, 0, 0,0,1,1,0,0,0,0,0
 ), nrow = 5, byrow = TRUE)
 
 # Convert the matrix to a SpatRaster

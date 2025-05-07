@@ -13,12 +13,15 @@ source("scripts/02_OrganiseMurreletData.R")
 
 # Define the production targets
 production_targets <- c("0.24", "0.58")
-model <- readRDS("Models/pc1_3wayinteraction_model.rds")
+model <- readRDS("Models/final_model_5thMay2025.rds")
 
 # Model, covariate, and site data inputs
 covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%   
   dplyr::select(PC1_t1, scaleCoastDist, scaleDoy, scaleDoy2, scaleDoy2, OceanYear) %>%  unique()
 real_murrelet_site_data <- read.csv("Inputs/siteData.csv")
+
+#read in means and SDs of covariates from original model to enable coorrect scalings
+meansAndSds
 
 # #determine which distance to coast you want to make the simlations for #####
 coast_mean <- mean(siteCovs(analysisData)$coastDist, na.rm = TRUE)
@@ -81,13 +84,14 @@ for (target in production_targets) {
   # Combine habitat and edge data
   all_df <- hab_df %>% left_join(edge_df)
   
+  
   # Prepare data for prediction with scaled covariates
   prediction_df <- all_df %>% mutate(
-    scaleHabAmount100 = scale(habAmountDich_100), 
-    scaleHabAmount2000 = scale(habAmountDich_2000), 
-    scaleEdgeDens100 = scale(edgeRook_100_40), 
-    scaleEdgeDens2000 = scale(edgeRook_2000_40)) %>%  
-    dplyr::select(landscape_name, point_id, scaleHabAmount100, scaleHabAmount2000, scaleEdgeDens100, scaleEdgeDens2000) %>% 
+    scaleHabAmount100 = (habAmountDich_100  - meansAndSds$meanHabAmountDich100) /meansAndSds$sdHabAmountDich100,
+    scaleHabAmount2000 = (habAmountDich_2000 - meansAndSds$meanHabAmountDich2000) /meansAndSds$sdHabAmountDich2000,
+    scaleEdgeDens100 =  (edgeRook_100_40 - meansAndSds$meanEdgeDens100) /meansAndSds$sdEdgeRook100, 
+    scaleEdgeDens2000 = (edgeRook_2000_40 - meansAndSds$meanEdgeDens2000)/meansAndSds$sdEdgeRook2000) %>% 
+   dplyr::select(landscape_name, point_id, scaleHabAmount100, scaleHabAmount2000, scaleEdgeDens100, scaleEdgeDens2000) %>% 
     cross_join(covariates)
   
   # Predict occupancy with standard errors (for error ribbon)
@@ -139,6 +143,7 @@ for (target in production_targets) {
     scale_color_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + # Color points
  #   facet_wrap(~CoastDist, ncol = 4) +  # Facet by Coastal Distance
      theme_classic(base_size = 14) +
+    ylim(0,1)+
     labs(x = "Increasing landscape fragmentation ->", y = "Occupancy", 
          title = paste("Occupancy in forest points across landscape (P =", target, ")")) +
     theme(
@@ -151,7 +156,7 @@ for (target in production_targets) {
   
   
   # Save occupancy boxplot
-  ggsave(paste0("Figures/ForestPoints3way_Occupancy_Boxplot_p", target, ".png"), plot = p_plot, width = 10, height = 6, dpi = 300)
+  ggsave(paste0("Figures/NEW_ForestPoints3way_Occupancy_Boxplot_p", target, ".png"), plot = p_plot, width = 10, height = 6, dpi = 300)
   
   # Export terra raster plots
   file_names <- basename(sources(landscapes))

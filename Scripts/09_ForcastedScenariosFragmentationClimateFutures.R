@@ -11,6 +11,14 @@ library(parallel)
 library(skimr)
 library(summarytools)
 
+source("scripts/02_OrganiseMurreletData.R")
+
+#-----------------------------------------
+#define params ####
+minimum_habitat_amount <- 0.05 # to be included, needs to have more than 
+#this amount of habitat (removes site with loads of non-habitat)
+#-----------------------------------------
+
 # read in inputs #####
 covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%   
   dplyr::select(PC1_t1, scaleDoy, scaleDoy2, scaleDoy2, OceanYear) %>%  unique() %>%  
@@ -19,16 +27,31 @@ covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%
     OceanYear == "Bad Ocean Years" ~ -1.880589,
     TRUE ~ PC1_t1  # keeps the original value of PC1_t1 when OceanYear is not "Bad Ocean Years"
   ))
-#model <- readRDS("Models/pc1_interaction_model.rds")
-#model <- readRDS("Models/pc1_3wayinteraction_model.rds")
-model <- readRDS("Models/pc1_3way_v2_interaction_model.rds")
+model <- readRDS("Models/final_model_5thMay2025.rds")
 
-final2020 <- readRDS("PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8
-as.data.frame() #%>%  
-#   #only keep points with an SDM value
-# filter(!is.na(point_leve_habitat))
-# #dfSummary(final2020)
+final2020 <- readRDS("Outputs/PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8
+  as.data.frame() #%>%  
 
+#quickly check data locations
+checkPoints <- vect(final2020, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
+plot(SDM2020, main = "Raster with 500m Grid Points")
+plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+
+#read in means and SDs of covariates from original model to enable coorrect scalings
+meansAndSds
+
+
+#_______________________________________________________________________________________________
+#remind ourselves of range of covariates values that the original occupancy the model has seen: 
+modelled_covs <- analysisSites %>% dplyr::select(scaleCoastDist,scaleEdgeDens100,scaleEdgeDens2000, scaleHabAmount100, scaleHabAmount2000, 
+                                          PC1_t1)
+happy_estimate_range <- modelled_covs%>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>% 
+  ggplot( aes(x = Value)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "white", alpha = 0.7) +
+  facet_wrap(~ Variable, scales = "free") +
+  theme_minimal() +
+  labs(title = "Histograms of Dataframe Columns", x = "Value", y = "Frequency")
 
 #----------------------------------
 #functions ####
@@ -36,13 +59,16 @@ as.data.frame() #%>%
 #function for scaling data and making model predictions dataset ####
 prep_and_predict <- function(x){
   
-  # Prepare data for prediction with scaled covariates
+    # Prepare data for prediction with scaled covariates
+  
+ # scaling = original - mean / std 
   prediction_df <- x %>% mutate(
-    scaleHabAmount100 = scale(habAmountDich_100), 
-    scaleHabAmount2000 = scale(habAmountDich_2000), 
-    scaleEdgeDens100 = scale(edgeRook_100_40), 
-    scaleEdgeDens2000 = scale(edgeRook_2000_40), 
-    scaleCoastDist = scale(distance_to_coastline)) %>%  
+    scaleHabAmount100 = (habAmountDich_100  - meansAndSds$meanHabAmountDich100) /meansAndSds$sdHabAmountDich100,
+    scaleHabAmount2000 = (habAmountDich_2000 - meansAndSds$meanHabAmountDich2000) /meansAndSds$sdHabAmountDich2000,
+    scaleEdgeDens100 =  (edgeRook_100_40 - meansAndSds$meanEdgeDens100) /meansAndSds$sdEdgeRook100, 
+    scaleEdgeDens2000 = (edgeRook_2000_40 - meansAndSds$meanEdgeDens2000)/meansAndSds$sdEdgeRook2000,
+    scaleCoastDist = (distance_to_coastline - meansAndSds$meanCoastDist) /meansAndSds$sdCoastDist
+    ) %>%  
     dplyr::select(point_id, scaleHabAmount100, scaleHabAmount2000, scaleEdgeDens100, scaleEdgeDens2000,scaleCoastDist,hab_loss_amount,cancov_2020) %>% 
     cross_join(covariates)
   
@@ -72,14 +98,13 @@ prep_and_predict <- function(x){
 #to use if we use all points (and not just the poins that >.45 hab suitabili)
 prep_and_predict_parallelised <- function(x) {
   # Prepare data for prediction with scaled covariates
-  prediction_df <- x %>%
-    mutate(
-      scaleHabAmount100 = scale(habAmountDich_100),
-      scaleHabAmount2000 = scale(habAmountDich_2000),
-      scaleEdgeDens100 = scale(edgeRook_100_40),
-      scaleEdgeDens2000 = scale(edgeRook_2000_40),
-      scaleCoastDist = scale(distance_to_coastline)
-    ) %>%
+  prediction_df <- x %>% mutate(
+    scaleHabAmount100 = (habAmountDich_100  - meansAndSds$meanHabAmountDich100) /meansAndSds$sdHabAmountDich100,
+    scaleHabAmount2000 = (habAmountDich_2000 - meansAndSds$meanHabAmountDich2000) /meansAndSds$sdHabAmountDich2000,
+    scaleEdgeDens100 =  (edgeRook_100_40 - meansAndSds$meanEdgeDens100) /meansAndSds$sdEdgeRook100, 
+    scaleEdgeDens2000 = (edgeRook_2000_40 - meansAndSds$meanEdgeDens2000)/meansAndSds$sdEdgeRook2000,
+    scaleCoastDist = (distance_to_coastline - meansAndSds$meanCoastDist) /meansAndSds$sdCoastDist
+  ) %>%  
     dplyr::select(
       point_id,
       scaleHabAmount100,
@@ -145,7 +170,7 @@ prep_and_predict_parallelised <- function(x) {
 hab_points <- final2020  #include all points
 
  #check mean distance to coast 
- hab_points %>% summarise(mean_dist = mean(distance_to_coastline)) # mean suitable habitat is > 76 Km from coast
+ hab_points %>% summarise(mean_dist = mean(distance_to_coastline)) # mean suitable habitat is > 94km Km from coast
                                                                    # This is because murrelet SDMs dont account for coast dist
  
  max_edge <- max(final2020$edgeRook_2000_40)
@@ -238,8 +263,8 @@ hab_points_fragmentation_linear_hab_loss_cumalative <- hab_points %>%
   )
 
 # xtest <- hab_points_fragmentation_linear_hab_loss_cumalative %>% filter(point_id == "p642021")
-dfSummary(hab_points_fragmentation_linear_hab_loss_cumalative)
-overlyhigh <- hab_points_fragmentation_linear_hab_loss_cumalative %>%  filter(prop_hab_change >10)
+#dfSummary(hab_points_fragmentation_linear_hab_loss_cumalative)
+#overlyhigh <- hab_points_fragmentation_linear_hab_loss_cumalative %>%  filter(prop_hab_change >10)
 # ##############
 # ################
 # 
@@ -278,6 +303,7 @@ overlyhigh <- hab_points_fragmentation_linear_hab_loss_cumalative %>%  filter(pr
 
 #==========================================================
 #plot figures for different assumptions of habitat loss, fragmentation and ocean, by ownership 
+#------------------------------------------------------------
 
 interacting_plots <- function(x){
 #add categorical distance to coast info 
@@ -335,23 +361,25 @@ ownership_only_variation_plot <- function(x){
   #add categorical distance to coast info 
   frag_df <- x %>%  
     #if plotting area mutate into hectares (a buffer is 314 hectate)
-    mutate(hab_loss_amount = hab_loss_amount) 
+    mutate(hab_loss_amount_ha = round(buff2km_ha_area*hab_loss_amount))
   
   #BOXPLOTS
   frag_df %>%
     filter(ownership %in% c("Federal", "Private Industrial", "Private Non-industrial", "State")) %>% 
     mutate(ownership = factor(ownership, levels = c("State", "Federal", "Private Industrial", "Private Non-industrial"))) %>% 
-    
+    mutate(ownership = factor(ownership, levels = c("State", "Federal", "Private Non-industrial", "Private Industrial"))) %>%  
+  
     group_by(hab_loss_amount) %>% 
-    ggplot(aes(x = as.factor(hab_loss_amount), y = Occupancy, fill = as.factor(OceanYear))) + 
-    geom_point(aes(color = OceanYear), size = 2, alpha = 0.02, position = position_jitterdodge(jitter.width = .25)) +  # Points with jitter
-    geom_boxplot(color = "black", outlier.alpha = 0.4) +  # Boxplot with black outline
+    ggplot(aes(x = as.factor(hab_loss_amount_ha), y = Occupancy, fill = as.factor(OceanYear))) + 
+    #geom_point(aes(color = OceanYear), size = 2, alpha = 0.02, position = position_jitterdodge(jitter.width = .25)) +  # Points with jitter
+    geom_boxplot(color = "black", outlier.shape = NA) +  # Boxplot with black outline
     # Custom fill colors for OceanYear
     scale_fill_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + 
     scale_color_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + # Color points
     theme_classic(base_size = 14) +  # Nature-style theme
+    ylim(0,0.5)+
     labs(
-      x = "Projected increase in future habitat loss (ha ) per 2km buffer",  # Label for x-axis
+      x = "Projected increase in future habitat loss (ha) per 2km buffer",  # Label for x-axis
       y = "Occupancy"   # Label for y-axis
     ) +
     facet_wrap(~ ownership, ncol = 4) +  # Customize facet labels
@@ -370,89 +398,125 @@ ownership_only_variation_plot <- function(x){
     )
 }
 
-dfSummary(x)
+dfSummary(frag_linear_loss)
 #prep-and-predict (use for smaller number of points - ie if filter hab >0.45)
 frag_linear_loss <-  hab_points_fragmentation_linear_hab_loss_cumalative %>%  
-  filter( distance_to_coastline < 84000, cancov_2020 >0) %>% 
-  prep_and_predict()  #fragmentation and linear loss of 2km habitat 
+ # filter( distance_to_coastline < 84000, cancov_2020 >0) %>% 
+  prep_and_predict_parallelised()  #fragmentation and linear loss of 2km habitat 
 
-#check high preditions 
-highOcc <- frag_linear_loss %>%  filter(Occupancy > 0.5)
+saveRDS(frag_linear_loss, "hab_points_fragmentation_linear_hab_loss_cumalative_final_model_5thMay2025.rds")
 
-plot <- frag_linear_loss %>%   ownership_only_variation_plot()
+head(frag_linear_loss)
 
-
-#use if we are using all of the points (eg. not just hab >0.45)
-frag_linear_loss <-  prep_and_predict_parallelised(hab_points_fragmentation_linear_hab_loss_cumalative) #fragmentation and linear loss of 2km habitat 
-saveRDS(frag_linear_loss, "Outputs/pnw_all_points_predictions.rds")
+#-----------------------------------------------------------------------------------
+#CAN START HERE ####
+frag_linear_loss <- readRDS("hab_points_fragmentation_linear_hab_loss_cumalative_final_model_5thMay2025.rds")
 dfSummary(frag_linear_loss)
 
-# frag_linear_loss <-  prep_and_predict(hab_points_fragmentation_linear_hab_loss_cumalative) #fragmentation and linear loss of 2km habitat 
-# frag_linear_loss35 <- prep_and_predict(hab_points35_fragmentation_linear_hab_loss_cumalative)
-# 
+frag_linear_loss <- frag_linear_loss %>%  filter( distance_to_coastline < 100000) 
 
-#build boxplots of occ by future hab_loss * fragmentation plots 
-frag_only_plot <- interacting_plots(frag_only)
-frag_linear_loss_plot <-interacting_plots(frag_linear_loss)
-owner_frag_linear_loss_plot <-ownership_only_variation_plot(frag_linear_loss) #plot onership impact without distance fragmentation
+#check covariate structure
+frag_linear_loss %>%  
+  dplyr::select(scaleCoastDist,scaleEdgeDens100,scaleEdgeDens2000, scaleHabAmount100, scaleHabAmount2000, 
+                PC1_t1) %>% 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>% 
+  ggplot( aes(x = Value)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "white", alpha = 0.7) +
+  facet_wrap(~ Variable, scales = "free") +
+  theme_minimal() +
+  labs(title = "Histograms of Dataframe Columns", x = "Value", y = "Frequency")
 
+hist(frag_linear_loss$scaleCoastDist)
+highOcc <- frag_linear_loss %>%  
+  filter(Occupancy >0.7) %>%  
+  filter(hab_loss_amount == 0) %>%  
+  filter(ownership == "State")
 
-temp_id <- final2020 %>% select(point_id,cancov_2020) %>% unique()
-frag_linear_loss<- frag_linear_loss %>% left_join(temp_id)
-owner_frag_linear_loss_plot_100km <- frag_linear_loss %>%filter(distance_to_coastline < 84000 & cancov_2020 > 4000) %>%  
+#compare to what we can confidently predict over in our model
+happy_estimate_range 
+
+#scale back to original hab amount 
+frag_linear_loss <- frag_linear_loss %>% mutate(habAmountDich_2000 = (scaleHabAmount2000 * meansAndSds$sdHabAmountDich2000) + meansAndSds$meanHabAmountDich2000)
+
+#quickly check the consequences of applying thresholds for removal of data with almost 
+# no surrounding habitat on federal and state lands (as these are often snowy/ icy )
+plot <- frag_linear_loss %>%
+  filter(cancov_2020 > 0) %>% 
+
+  #-------------------------------
+  #THIS SECTION IS DEALING WITH POINTS THAT FALL IN FED.STATES LAND BUT WITH V LOW SURROUNDING CANOPY COVER 
+  #filter out species points
+  mutate(to_exclude = habAmountDich_2000 < minimum_habitat_amount & 
+           hab_loss_amount == 0 & 
+           ownership %in% c("State", "Federal")) %>%  
+  # if any point_id has a to_exclude value of TRUE, all rows for that point_id also have to_exclude as TRUE
+  group_by(point_id) %>% 
+  mutate(to_exclude = any(to_exclude)) %>% 
+  ungroup() %>%  
+# Filter out excluded points
+  filter(!to_exclude) %>%  
+  #-------------------------------
   ownership_only_variation_plot()
-owner_frag_linear_loss_plot_45 <- frag_linear_loss %>%filter(point_leve_habitat >45) %>%  
-  ownership_only_variation_plot()
+plot
+names(frag_linear_loss)
 
-hist(frag_linear_loss$distance_to_coastline)
-#just for the <3500 data
-frag_linear_loss_plot <-interacting_plots(frag_linear_loss35)
-owner_frag_linear_loss_plot <-ownership_only_variation_plot(frag_linear_loss35)
-frag_linear_loss_plot
-# frag_linear_loss_cumalative_plot <- interacting_plots(frag_linear_loss_cumalative)
-# frag_linear_loss_cumalative_plot2 <-  interacting_plots(frag_linear_loss_cumalative2) #hab loss refers to actual AMOUNT of habitat loss. so 0.1 of 2k (or200 ha) = 20hectare, 0.5 = 100ha 
-# frag_quadratic_loss_plot <- interacting_plots(frag_quadratic_loss)
-# frag_nShaped_loss_plot <- interacting_plots(frag_nShaped_loss)
-# frag_nShapedLoess_loss_plot <- interacting_plots(frag_nShapedLoess_loss)
-# frag_01edge_plot <- interacting_plots(frag_01edge)
-# frag45_01edge_plot <- interacting_plots(frag45_01edge)
 
 
 #----------------------------------------------------------------------
-#plots of edge amount and habitat amount by landscape ownership 
-model <- readRDS("Models/pc1_interaction_model.rds")
+#plots of edge amount and habitat amount by landscape ownership ####
+#-------------------------------------------------
 
-
+  
 plot_ownership_distribution <- function(data, x_var, x_axis_title, title) {
   
   # Filter and categorize data
   filtered_data <- data %>%
     filter(!ownership %in% c("Unknown", NA)) %>%  
     filter(ownership %in% c("Federal", "State", "Private Industrial", "Private Non-industrial")) %>% 
-    mutate(coast_categorical = case_when(
-      distance_to_coastline < 20000 ~ "<20km",
-      distance_to_coastline >= 20000 & distance_to_coastline < 40000 ~ "20-40 km",
-      distance_to_coastline >= 40000 & distance_to_coastline < 60000 ~ "40-60 km",
-      distance_to_coastline >= 60000 ~ ">60 km"
-    )) %>%
-    mutate(coast_categorical = factor(coast_categorical, levels = c("<20km", "20-40 km","40-60 km", ">60 km")))
+    filter(distance_to_coastline <84000) 
+
+    # Conditionally filter based on x_var
+    if (x_var == "habAmountDich_2000") {
+      filtered_data <- filtered_data %>% filter(.data[[x_var]] > minimum_habitat_amount)
+    }
+  
+    
+    # mutate(coast_categorical = case_when(
+    #   distance_to_coastline < 20000 ~ "<20km",
+    #   distance_to_coastline >= 20000 & distance_to_coastline < 40000 ~ "20-40 km",
+    #   distance_to_coastline >= 40000 & distance_to_coastline < 60000 ~ "40-60 km",
+    #   distance_to_coastline >= 60000 ~ ">60 km"
+    # )) %>%
+    # mutate(coast_categorical = factor(coast_categorical, levels = c("<20km", "20-40 km","40-60 km", ">60 km")))
   
   # Compute median for each facet group
-  medians <- filtered_data %>%
-    group_by(coast_categorical, ownership) %>%
-    summarise(median_value = median(.data[[x_var]], na.rm = TRUE), .groups = "drop")
+  summary_stats <- filtered_data %>%
+    group_by(ownership) %>%
+    summarise(
+      median_value = median(.data[[x_var]], na.rm = TRUE),
+      count = n(),
+      .groups = "drop"
+    )
   
   # Create histogram plot with facet and median lines
   ggplot(filtered_data, aes(x = .data[[x_var]])) +  
-    geom_histogram(fill = "#4C9A2A", color = "black", alpha = 0.7, bins = 100) +  
-    geom_vline(data = medians, aes(xintercept = median_value), 
+    geom_histogram(fill = "#4C9A2A", color = "black", alpha = 0.7) +  
+    geom_vline(data = summary_stats, aes(xintercept = median_value), 
                linetype = "dashed", color = "red", linewidth = 1) +  
+    
+    geom_text(
+      data = summary_stats,
+      aes(x = Inf, y = Inf, label = paste0("n = ", count)),
+      hjust = 1.2, vjust = 1.5, size = 5, inherit.aes = FALSE
+    ) +  
+    
     labs(
       title = title,
       x = x_axis_title,  
       y = "Frequency"
     ) +
-    facet_wrap(~interaction(coast_categorical, ownership), scales = "free_y", ncol = 4, nrow = 4) +  
+    
+    facet_wrap(~ ownership, scales = "free_y", ncol = 4, nrow = 1) +  
     theme_minimal(base_size = 16) +  
     theme(
       plot.title = element_text(hjust = 0.5, face = "bold"),  
@@ -461,7 +525,7 @@ plot_ownership_distribution <- function(data, x_var, x_axis_title, title) {
     ) +
     scale_x_continuous(expand = c(0, 0)) +  
    # scale_y_continuous(expand = c(0, 0)) +  
-    scale_y_continuous(expand = c(0, 0), limits = c(0, 600)) +  
+  #  scale_y_continuous(expand = c(0, 0), limits = c(0, 600)) +  
     
     theme(
       panel.grid.major = element_line(color = "gray80", linetype = "dashed"),
@@ -470,14 +534,17 @@ plot_ownership_distribution <- function(data, x_var, x_axis_title, title) {
     )
 }
 
-#make ownership plots 
-edge_ownership <- plot_ownership_distribution(hab_points, "edgeRook_2000_40",
-                                              x_axis_title = "Proportion Edge Amount (2km)",
-                                              "Distribution of Edge Amount in 2km Buffers by Ownership")
 
-habitat_ownership <- plot_ownership_distribution(hab_points, "habAmountDich_2000", 
+
+edge_ownership <- plot_ownership_distribution(hab_points, 
+                                              x_var = "edgeRook_2000_40",
+                                              x_axis_title = "Proportion Edge Amount (2km)",
+                                              title = "Distribution of Edge Amount in 2km Buffers by Ownership")
+
+habitat_ownership <- plot_ownership_distribution(hab_points, 
+                                                 x_var ="habAmountDich_2000", 
                                                  x_axis_title = "Proportion Habitat Amount (2km)",
-                                                 "Distribution of Habitat Amount in 2km Buffers by Ownership")
+                                                 title = "Distribution of Habitat Amount in 2km Buffers by Ownership")
 edge_ownership
 habitat_ownership
 

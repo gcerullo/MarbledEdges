@@ -217,6 +217,8 @@ model_list_all <- fitList(simple_detection_model,dist_model,model_with_habitat, 
 
 modSel(model_list_all)
 
+
+
 #------------------------------------------------------------------
 #Compare by K-fold cross validation for the 4 best-performing models
 #------------------------------------------------------------------
@@ -272,7 +274,7 @@ kfold_list <- list(k_fold_results_modelwithhabitat,k_fold_results_pc1,k_fold_res
 saveRDS(kfold_list, "Models/Kfold_model_performance.rds")
 
 #save best-performing model 
-saveRDS(multiple_two_way, "final_model_5thMay2025.rds" )
+saveRDS(multiple_two_way, "Models/final_model_5thMay2025.rds" )
 
 
 

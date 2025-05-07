@@ -66,8 +66,8 @@ earliest_PC1_year <- PC1_t1 %>%
   filter(year_t1 == min(year_t1)) %>% 
   pull(year_t1)
 
-## Filter `siteData` to include only sites with a specific edge condition (e.g., gt2kmFakeEdge==1) 
-# and create new variables `edgeArea100` and `edgeArea2000` based on specific edge and habitat values
+
+#  create new variables `edgeArea100` and `edgeArea2000` based on specific edge and habitat values
 analysisSites = siteData %>% 
   mutate(edgeArea100 = (edgeRook_100_40 * (pi * 100^2)) / (habAmountDich_100 * (pi * 100^2) + 1)) %>% 
   mutate(edgeArea2000 = (edgeRook_2000_40 * (pi * 2000^2)) / (habAmountDich_2000 * (pi * 2000^2) + 1)) %>%  
@@ -92,32 +92,25 @@ detections %>% count()
 
 # Calculate means and standard deviations for key variables in `analysisSites` and `analysisSurveys`
 # This list will store these statistics for later use or reference
-{meansAndSds = 
-  list(meanCanopy100 = mean(analysisSites$canopy100, na.rm=T),
-                   meanConDens100 = mean(analysisSites$conDens100, na.rm=T),
-                   meanCoastDist = mean(analysisSites$coastDist, na.rm=T),
-                   meanhabAmountDich2000 = mean(analysisSites$habAmountDich_2000, na.rm=T),
-                   meanHabAmountDich100 = mean(analysisSites$habAmountDich_100, na.rm=T),
-                   meanYoungPlusNonFor2000 = mean(analysisSites$youngPlusNonFor_2000_40, na.rm=T),
-                   meanYoungPlusNonFor100 = mean(analysisSites$youngPlusNonFor_100_40, na.rm=T),
-                   meanEdgeRook2000 = mean(analysisSites$edgeRook_2000_40, na.rm=T),
-                   meanEdgeRook100 = mean(analysisSites$edgeRook_100_40, na.rm=T),
-                   meanDoy = mean(analysisSurveys$doy, na.rm=T),
-                   meanEdgeArea100 = mean(analysisSites$edgeArea100, na.rm=T),
-                   meanEdgeArea2000 = mean(analysisSites$edgeArea2000, na.rm=T),
-                   sdCanopy100 = sd(analysisSites$canopy100, na.rm=T),
-                   sdConDens100 = sd(analysisSites$conDens100, na.rm=T),
-                   sdCoastDist = sd(analysisSites$coastDist, na.rm=T),
-                   sdhabAmountDich2000 = sd(analysisSites$habAmountDich_2000, na.rm=T),
-                   sdHabAmountDich100 = sd(analysisSites$habAmountDich_100, na.rm=T),
-                   sdYoungPlusNonFor2000 = sd(analysisSites$youngPlusNonFor_2000_40, na.rm=T),
-                   sdYoungPlusNonFor100 = sd(analysisSites$youngPlusNonFor_100_40, na.rm=T),
-                   sdEdgeRook2000 = sd(analysisSites$edgeRook_2000_40, na.rm=T),
-                   sdEdgeRook100 = sd(analysisSites$edgeRook_100_40, na.rm=T),
-                   sdDoy = sd(analysisSurveys$doy, na.rm=T),
-                   sdEdgeArea100 = sd(analysisSites$edgeArea100, na.rm=T),
-                   sdEdgeArea2000 = sd(analysisSites$edgeArea2000, na.rm=T))
-  }
+meansAndSds <- data.frame(
+  meanCanopy100 = mean(analysisSites$canopy100, na.rm = TRUE),
+  meanCoastDist = mean(analysisSites$coastDist, na.rm = TRUE),
+  meanHabAmountDich2000 = mean(analysisSites$habAmountDich_2000, na.rm = TRUE),
+  meanHabAmountDich100 = mean(analysisSites$habAmountDich_100, na.rm = TRUE),
+  meanEdgeDens2000 = mean(analysisSites$edgeRook_2000_40, na.rm = TRUE),
+  meanEdgeDens100 = mean(analysisSites$edgeRook_100_40, na.rm = TRUE),
+  meanDoy = mean(analysisSurveys$doy, na.rm = TRUE),
+  sdCanopy100 = sd(analysisSites$canopy100, na.rm = TRUE),
+  sdConDens100 = sd(analysisSites$conDens100, na.rm = TRUE),
+  sdCoastDist = sd(analysisSites$coastDist, na.rm = TRUE),
+  sdHabAmountDich2000 = sd(analysisSites$habAmountDich_2000, na.rm = TRUE),
+  sdHabAmountDich100 = sd(analysisSites$habAmountDich_100, na.rm = TRUE),
+  sdYoungPlusNonFor2000 = sd(analysisSites$youngPlusNonFor_2000_40, na.rm = TRUE),
+  sdYoungPlusNonFor100 = sd(analysisSites$youngPlusNonFor_100_40, na.rm = TRUE),
+  sdEdgeRook2000 = sd(analysisSites$edgeRook_2000_40, na.rm = TRUE),
+  sdEdgeRook100 = sd(analysisSites$edgeRook_100_40, na.rm = TRUE),
+  sdDoy = sd(analysisSurveys$doy, na.rm = TRUE)
+)
 
 # Standardize dplyr::selected variables in `analysisSites` (centered and scaled) for later modeling
 #PC1 has already been scaled in prev script (01)

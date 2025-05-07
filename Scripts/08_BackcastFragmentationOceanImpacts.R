@@ -421,8 +421,12 @@ point_df <- as.data.frame(points, geom = "xy") %>%
   rename(point_id = id, 
          point_leve_habitat = probability)
 
+
+
 all_df <- all_df %>%left_join(point_df, by = "point_id")
-#!!!!!!!!!!!!!!!
+
+
+
 
 #average edge in good habitat
 all_df %>% filter(point_leve_habitat >=45) %>%  
@@ -473,6 +477,7 @@ distance_df <- data.frame(
 #add distance (m) to all_df 
 all_df <- all_df %>% left_join(distance_df)
 
+
 #====================================
 # get ownership ####
 #====================================
@@ -497,20 +502,34 @@ ownership_raster_template <- terra::rast(ownership,
 # Rasterize the polygon layer
 ownership_raster <- terra::rasterize(ownership, ownership_raster_template, field = "Own_simple")
 ownership_raster_pj <- terra::project(ownership_raster, crs_raster) #match crs
+
 # Resample ownership_raster to match the resolution of can_cov
 ownership_raster_resampled <- terra::resample(ownership_raster_pj, can_cov, method = "near")
 plot(ownership_raster_resampled)
 
+names(ownership_raster_resampled) <- "Ownership_Data"
+
+ownership_df <- ownership_raster_resampled %>% as.data.frame() 
 plot
 
-writeRaster(ownership_raster_resampled, "Rasters/test_reprojected_ownership.tif")
+#writeRaster(ownership_raster_resampled, "Rasters/test_reprojected_ownership.tif")
+#ownership_raster_resampled <- rast("Rasters/test_reprojected_ownership.tif")
 
-#now extract the points 
+checkPoints <- vect(all_df, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
+plot(ownership_raster_resampled, main = "Raster with 500m Grid Points")
+plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+
+##COME BACK TO!!!!
+#now extract the points - I think here there is a mistake happending
 extracted_ownership_values <- terra::extract(ownership_raster_resampled, points, bind = TRUE) %>% 
   as.data.frame() %>% 
-  select(id, Own_simple) %>% 
-  rename(ownership = Own_simple)
+  dplyr::select(id, Ownership_Data) %>% 
+  rename(ownership = Ownership_Data)
 saveRDS(extracted_ownership_values, "Outputs/ownership_random_points_pnw.rds")
+
+#why are so many NAs being created?!! 
+extracted_ownership_values %>% group_by(ownership) %>% count()
+
 
 ## The slow v accurate way:
 ## #match pt crs to ownership (faster than reproject the massive shapefile)
@@ -522,11 +541,12 @@ saveRDS(extracted_ownership_values, "Outputs/ownership_random_points_pnw.rds")
 #--------------------------------
 #finally add information on canopy cover so that we can use a forest/non-forest mask to filter points 
 #now extract the points 
+
 can_cov_all_trees
 points
 extracted_cancov_values <- terra::extract(can_cov_all_trees, points, bind = TRUE) %>% 
   as.data.frame() %>% 
-  select(id, cancov_2020) %>%  
+  dplyr::select(id, cancov_2020) %>%  
   rename(point_id =  id) 
 
 # writeRaster(can_cov_all_trees, "Rasters/test_cancov_alltrees.tif")
@@ -542,6 +562,9 @@ all_df <- all_df %>% left_join(ownership_data) %>%  left_join(extracted_cancov_v
 dfSummary(all_df) #ownership (32% points miss data;  cancov_2020   20% of points miss data 
 
 ownership_NAs <- all_df %>% filter(!is.na(ownership)) 
+
+#check why we have NAs 
+write.csv(ownership_NAs, "points_withNA_ownership.csv")
 # Convert to SpatVector
 ownership_NAs_vect <- vect(ownership_NAs, geom = c("x", "y"), crs = "EPSG:5070")
 
@@ -550,14 +573,21 @@ par(mfrow = c(1, 2))
 # Plot the raster
 plot(ownership_raster_resampled, main = "Ownership Raster")
 # Plot the vector
-plot(ownership_NAs_vect, main = "Ownership Vector", add = FALSE)
+plot(ownership_NAs_vect, main = "Ownership Vector", add = TRUE, col = "red")
+
 # Reset plotting layout (optional)
 par(mfrow = c(1, 1))
 
 #remove points we don't have ownership or canopy cover data for 
+dfSummary(all_df)
 final2020 <- all_df %>% 
 filter(!is.na(ownership)) %>%  
   filter(!is.na(cancov_2020)) 
+
+dfSummary(final2020)
+checkPoints <- vect(final2020, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
+plot(SDM2020, main = "Raster with 500m Grid Points")
+plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 
 
 #quickly summarise data #### (can read in final2020 at bottom)
@@ -746,17 +776,40 @@ frac_results <- exact_extract(habitat_binary_ownership_proj, ownership_sf, "frac
 saveRDS(frac_results, "frac_cover_by_ownership_shp.rds")
 #collapse into one 
 
-
 #extract habitat amount for each ownership shapefile 
 
-
-
 #EXPORT OUTPUT #####
-saveRDS(final2020, "PNW_2020_extracted_covars.rds")
+saveRDS(final2020, "Outputs/PNW_2020_extracted_covars.rds")
+write.csv(final2020, "Outputs/PNW_2020_extracted_covars.csv")
 #read in for quick plotting 
-#final2020 <- read.csv("PNW_2020_extracted_covars.csv")
+final2020 <- read.csv("PNW_2020_extracted_covars.csv")
+
+checkPoints <- vect(final2020, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
+plot(SDM2020, main = "Raster with 500m Grid Points")
+plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+
+lowhabitat_points <- final2020 %>% 
+  filter(habAmountDich_2000 <0.05)
+
+lowhabitat_points_federal <- final2020 %>% 
+  filter(habAmountDich_2000 <0.05) %>% 
+  filter(ownership == "Federal")
+lowhabitat_points_state <- final2020 %>% 
+  filter(habAmountDich_2000 <0.05) %>% 
+  filter(ownership == "State")
+lowhabitat_points_private_industrial <- final2020 %>% 
+  filter(habAmountDich_2000 <0.05) %>% 
+  filter(ownership == "Private Industrial")
+lowhabitat_points_privateNonindustrial <- final2020 %>% 
+  filter(habAmountDich_2000 <0.05) %>% 
+  filter(ownership == "Private Non-industrial")
 
 #test what's happening in Qgis
 #write.csv(final2020, "PNW_2020_extracted_covars.csv")
 #writeRaster(ownership_raster_resampled, "Rasters/ownership_raster_resampled.tif", overwrite=TRUE)
+write.csv(lowhabitat_points, "Rasters/points_less005_2km_hab_amount.csv")
+write.csv(lowhabitat_points_federal, "Rasters/federal_points_less005_2km_hab_amount.csv")
+write.csv(lowhabitat_points_state, "Rasters/state_points_less005_2km_hab_amount.csv")
+write.csv(lowhabitat_points_private_industrial, "Rasters/privateIndustrial_points_less005_2km_hab_amount.csv")
+write.csv(lowhabitat_points_privateNonindustrial, "Rasters/privateNonIndustrial_points_less005_2km_hab_amount.csv")
 
