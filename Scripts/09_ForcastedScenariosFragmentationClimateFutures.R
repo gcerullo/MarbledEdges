@@ -32,6 +32,9 @@ model <- readRDS("Models/final_model_5thMay2025.rds")
 final2020 <- readRDS("Outputs/PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8
   as.data.frame() #%>%  
 
+#add in information on elevation at each point 
+pt_elevation <- read.csv("Outputs/elevation_at_each_point.csv") 
+
 #quickly check data locations
 checkPoints <- vect(final2020, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
 plot(SDM2020, main = "Raster with 500m Grid Points")
@@ -39,6 +42,22 @@ plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 
 #read in means and SDs of covariates from original model to enable coorrect scalings
 meansAndSds
+
+# #quickly get elevation for all of the points 
+# final2020_vect = vect(final2020, geom = c("x", "y"), crs = "EPSG:5070")
+# 
+# #Get an elevation DEM in the correct projection (takes 20mins or so)
+# elevation <- rast("Rasters/DEMs/dem30m.tif")
+# 
+# #Step 1: Reproject elevation to EPSG:5070 (same as can_cov)
+# elev_proj <- project(elevation, can_cov, method = "bilinear")
+# 
+# # Step 2: Crop to the extent of can_cov
+# elev_crop <- crop(elev_proj, can_cov)
+# pt_elevations <- terra::extract(elev_crop, final2020_vect, bind = TRUE) %>% as.data.frame() %>%  
+#   dplyr::select(point_id, dem30m)
+# write.csv(pt_elevations, "Outputs/elevation_at_each_point.csv")
+
 
 
 #_______________________________________________________________________________________________
@@ -60,7 +79,6 @@ happy_estimate_range <- modelled_covs%>%
 prep_and_predict <- function(x){
   
     # Prepare data for prediction with scaled covariates
-  
  # scaling = original - mean / std 
   prediction_df <- x %>% mutate(
     scaleHabAmount100 = (habAmountDich_100  - meansAndSds$meanHabAmountDich100) /meansAndSds$sdHabAmountDich100,
@@ -305,57 +323,6 @@ hab_points_fragmentation_linear_hab_loss_cumalative <- hab_points %>%
 #plot figures for different assumptions of habitat loss, fragmentation and ocean, by ownership 
 #------------------------------------------------------------
 
-interacting_plots <- function(x){
-#add categorical distance to coast info 
-frag_df <- x %>%  
-mutate(coast_categorical = case_when(
-  
-  distance_to_coastline < 20000 ~ "<20km",
-  distance_to_coastline >= 20000 & distance_to_coastline < 40000 ~ "20-40 km",
-  distance_to_coastline >= 40000 & distance_to_coastline < 60000 ~ "40-60 km",
-  distance_to_coastline >= 60000 ~ ">60 km"
-  
-  # distance_to_coastline < 10000 ~ "coast (<10km)",
-  # distance_to_coastline >= 10000 & distance_to_coastline < 23000 ~ "10-23 km",
-  # distance_to_coastline >= 23000 ~ ">23 km"
-))%>%
-#  mutate(coast_categorical = factor(coast_categorical, levels = c("coast (<10km)", "10-23 km", ">23 km"))) %>% 
-  mutate(coast_categorical = factor(coast_categorical, levels = c("<20km", "20-40 km", "40-60 km", ">60 km"))) %>% 
-  
-   #if plotting area mutate into hectares (a buffer is 314 hectate)
-   mutate(hab_loss_amount = hab_loss_amount*314) 
-
-#BOXPLOTS
-frag_df %>%
-  filter(ownership %in% c("Federal", "Private Industrial", "Private Non-industrial")) %>% 
-  group_by(hab_loss_amount) %>% 
-  ggplot(aes(x = as.factor(hab_loss_amount), y = Occupancy, fill = as.factor(OceanYear))) + 
-  geom_point(aes(color = OceanYear), size = 2, alpha = 0.02, position = position_jitterdodge(jitter.width = .25)) +  # Points with jitter
-  geom_boxplot(color = "black") +  # Boxplot with black outline
-  # Custom fill colors for OceanYear
-  scale_fill_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + 
-  scale_color_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + # Color points
-  theme_classic(base_size = 14) +  # Nature-style theme
-  labs(
-    x = "Projected increase in future habitat loss (ha ) per 2km buffer",  # Label for x-axis
-    y = "Occupancy"   # Label for y-axis
-  ) +
-  facet_wrap(coast_categorical~ ownership, ncol = 3) +  # Customize facet labels
-  theme(
-    axis.text = element_text(size = 12),
-    axis.title = element_text(size = 14, face = "bold"),
-    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank(),
-    legend.position = "bottom",  # Place the legend at the bottom
-    legend.title = element_blank()  # Remove the legend title
-  ) +
-  guides(
-    fill = guide_legend(title = NULL),  # Remove the fill legend title
-    color = guide_legend(title = NULL)  # Remove the color legend title
-  )
-}
-
 
 ownership_only_variation_plot <- function(x){
   #add categorical distance to coast info 
@@ -363,12 +330,19 @@ ownership_only_variation_plot <- function(x){
     #if plotting area mutate into hectares (a buffer is 314 hectate)
     mutate(hab_loss_amount_ha = round(buff2km_ha_area*hab_loss_amount))
   
+  summary_stats <- frag_df %>%
+    group_by(ownership) %>%
+    summarise(
+      count = n(),
+      .groups = "drop"
+    ) %>% filter(ownership %in% c("Federal", "Private Industrial","Private Conservation", "Private Non-industrial","Indian", "State"))
+  
+  
   #BOXPLOTS
   frag_df %>%
-    filter(ownership %in% c("Federal", "Private Industrial", "Private Non-industrial", "State")) %>% 
-    mutate(ownership = factor(ownership, levels = c("State", "Federal", "Private Industrial", "Private Non-industrial"))) %>% 
-    mutate(ownership = factor(ownership, levels = c("State", "Federal", "Private Non-industrial", "Private Industrial"))) %>%  
-  
+    filter(ownership %in% c("Federal", "Private Industrial","Private Conservation",  "Private Non-industrial","Indian", "State")) %>% 
+    mutate(ownership = factor(ownership, levels = c("Private Conservation", "Federal", "State", "Indian","Private Non-industrial","Private Industrial"))) %>% 
+
     group_by(hab_loss_amount) %>% 
     ggplot(aes(x = as.factor(hab_loss_amount_ha), y = Occupancy, fill = as.factor(OceanYear))) + 
     #geom_point(aes(color = OceanYear), size = 2, alpha = 0.02, position = position_jitterdodge(jitter.width = .25)) +  # Points with jitter
@@ -376,13 +350,21 @@ ownership_only_variation_plot <- function(x){
     # Custom fill colors for OceanYear
     scale_fill_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + 
     scale_color_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + # Color points
+    
+    
+    geom_text(
+      data = summary_stats,
+      aes(x = Inf, y = Inf, label = paste0("n = ", count)),
+      hjust = 1.2, vjust = 1.5, size = 4, inherit.aes = FALSE
+    )+
+    
     theme_classic(base_size = 14) +  # Nature-style theme
-    ylim(0,0.5)+
+    ylim(0,0.3)+
     labs(
       x = "Projected increase in future habitat loss (ha) per 2km buffer",  # Label for x-axis
       y = "Occupancy"   # Label for y-axis
     ) +
-    facet_wrap(~ ownership, ncol = 4) +  # Customize facet labels
+    facet_wrap(~ ownership, ncol = 3) +  # Customize facet labels
     theme(
       axis.text = element_text(size = 12),
       axis.title = element_text(size = 14, face = "bold"),
@@ -398,7 +380,8 @@ ownership_only_variation_plot <- function(x){
     )
 }
 
-dfSummary(frag_linear_loss)
+
+#dfSummary(frag_linear_loss)
 #prep-and-predict (use for smaller number of points - ie if filter hab >0.45)
 frag_linear_loss <-  hab_points_fragmentation_linear_hab_loss_cumalative %>%  
  # filter( distance_to_coastline < 84000, cancov_2020 >0) %>% 
@@ -411,10 +394,9 @@ head(frag_linear_loss)
 #-----------------------------------------------------------------------------------
 #CAN START HERE ####
 frag_linear_loss <- readRDS("hab_points_fragmentation_linear_hab_loss_cumalative_final_model_5thMay2025.rds")
-dfSummary(frag_linear_loss)
+#dfSummary(frag_linear_loss)
 
-frag_linear_loss <- frag_linear_loss %>%  filter( distance_to_coastline < 100000) 
-
+frag_linear_loss <- frag_linear_loss %>% left_join(pt_elevation)
 #check covariate structure
 frag_linear_loss %>%  
   dplyr::select(scaleCoastDist,scaleEdgeDens100,scaleEdgeDens2000, scaleHabAmount100, scaleHabAmount2000, 
@@ -426,11 +408,6 @@ frag_linear_loss %>%
   theme_minimal() +
   labs(title = "Histograms of Dataframe Columns", x = "Value", y = "Frequency")
 
-hist(frag_linear_loss$scaleCoastDist)
-highOcc <- frag_linear_loss %>%  
-  filter(Occupancy >0.7) %>%  
-  filter(hab_loss_amount == 0) %>%  
-  filter(ownership == "State")
 
 #compare to what we can confidently predict over in our model
 happy_estimate_range 
@@ -438,28 +415,73 @@ happy_estimate_range
 #scale back to original hab amount 
 frag_linear_loss <- frag_linear_loss %>% mutate(habAmountDich_2000 = (scaleHabAmount2000 * meansAndSds$sdHabAmountDich2000) + meansAndSds$meanHabAmountDich2000)
 
+#what was the elevational range of murrelets in dataset from pre-clearance surveys? 
+elevational_range_df <- read.csv("Inputs/pointsInRoiAndSamplingWindow_withDEM.csv")
+hist(elevational_range_df$dem30m) 
+max(elevational_range_df$dem30m, na.rm = TRUE) #no surveys above 1636.42 metres! 
+
+
+
+  #get quantiles of elevation  
+q95elev = as.numeric(quantile(elevational_range_df$dem30m, 0.95, na.rm = TRUE))
+q90elev = as.numeric(quantile(elevational_range_df$dem30m, 0.90, na.rm = TRUE))
+q80elev = as.numeric(quantile(elevational_range_df$dem30m, 0.80, na.rm = TRUE))
+
+print(q95elev)
+print(q90elev)
+print(q80elev)
 #quickly check the consequences of applying thresholds for removal of data with almost 
 # no surrounding habitat on federal and state lands (as these are often snowy/ icy )
+
+elevation_plot_fun <- function(elev_thresh){
 plot <- frag_linear_loss %>%
-  filter(cancov_2020 > 0) %>% 
-
+  filter(cancov_2020 > 0) %>% #remove non-forest habitat points
+  filter( distance_to_coastline < 100000) %>% #remove points v far from coast 
+  filter(dem30m < elev_thresh) %>% 
   #-------------------------------
-  #THIS SECTION IS DEALING WITH POINTS THAT FALL IN FED.STATES LAND BUT WITH V LOW SURROUNDING CANOPY COVER 
-  #filter out species points
-  mutate(to_exclude = habAmountDich_2000 < minimum_habitat_amount & 
-           hab_loss_amount == 0 & 
-           ownership %in% c("State", "Federal")) %>%  
-  # if any point_id has a to_exclude value of TRUE, all rows for that point_id also have to_exclude as TRUE
-  group_by(point_id) %>% 
-  mutate(to_exclude = any(to_exclude)) %>% 
-  ungroup() %>%  
-# Filter out excluded points
-  filter(!to_exclude) %>%  
+#   #THIS SECTION IS DEALING WITH POINTS THAT FALL IN FED.STATES LAND BUT WITH V LOW SURROUNDING CANOPY COVER
+#   #filter out species points
+#   mutate(to_exclude = habAmountDich_2000 < minimum_habitat_amount &
+#            hab_loss_amount == 0) %>%# &
+# #           ownership %in% c("State", "Federal")) %>%
+#   # if any point_id has a to_exclude value of TRUE, all rows for that point_id also have to_exclude as TRUE
+#   group_by(point_id) %>%
+#   mutate(to_exclude = any(to_exclude)) %>%
+#   ungroup() %>%
+# # Filter out excluded points
+#   filter(!to_exclude) %>%
   #-------------------------------
-  ownership_only_variation_plot()
-plot
-names(frag_linear_loss)
+  ownership_only_variation_plot()+
+  ggtitle(paste("Elevation Threshold:", round(elev_thresh)))
+return(plot)
+}
 
+q95plot <- elevation_plot_fun(q95elev)
+q90plot <- elevation_plot_fun(q90elev)
+q80plot <- elevation_plot_fun(q80elev)
+
+
+#test for different elevation thresholds
+# Define quantiles and thresholds
+quantile_values <- c(0.80, 0.90, 0.95)
+quantile_names <- paste0("q", quantile_values * 100)
+
+# Compute the actual elevation thresholds
+elevation_thresholds <- quantile(frag_linear_loss$dem30m, probs = quantile_values, na.rm = TRUE)
+
+# Loop through quantiles and generate a plot for each
+plots <- map2(elevation_thresholds, quantile_names, function(thresh, name) {
+  frag_linear_loss %>%
+    filter(cancov_2020 > 0,
+           distance_to_coastline < 100000,
+           dem30m < thresh) %>%
+    ownership_only_variation_plot() +
+    ggtitle(paste("Elevation Threshold:", name))
+})
+
+plots[[1]]
+plots[[2]]
+plots[[3]]
 
 
 #----------------------------------------------------------------------
@@ -467,13 +489,16 @@ names(frag_linear_loss)
 #-------------------------------------------------
 
   
-plot_ownership_distribution <- function(data, x_var, x_axis_title, title) {
+plot_ownership_distribution <- function(data, x_var, x_axis_title, title, xlims =NULL) {
   
   # Filter and categorize data
   filtered_data <- data %>%
     filter(!ownership %in% c("Unknown", NA)) %>%  
-    filter(ownership %in% c("Federal", "State", "Private Industrial", "Private Non-industrial")) %>% 
-    filter(distance_to_coastline <84000) 
+    filter(ownership %in% c("Federal", "Private Industrial","Private Conservation", "Indian", "Private Non-industrial", "State")) %>% 
+    filter(distance_to_coastline <84000) %>%  
+    filter(cancov_2020 >0) %>%  
+    filter(dem30m < 500)  
+    
 
     # Conditionally filter based on x_var
     if (x_var == "habAmountDich_2000") {
@@ -494,7 +519,7 @@ plot_ownership_distribution <- function(data, x_var, x_axis_title, title) {
     group_by(ownership) %>%
     summarise(
       median_value = median(.data[[x_var]], na.rm = TRUE),
-      count = n(),
+      count = n_distinct(point_id),
       .groups = "drop"
     )
   
@@ -516,15 +541,17 @@ plot_ownership_distribution <- function(data, x_var, x_axis_title, title) {
       y = "Frequency"
     ) +
     
-    facet_wrap(~ ownership, scales = "free_y", ncol = 4, nrow = 1) +  
+    facet_wrap(~ ownership, scales = "free_y", ncol = 3, nrow = 2) +  
     theme_minimal(base_size = 16) +  
     theme(
       plot.title = element_text(hjust = 0.5, face = "bold"),  
       axis.text = element_text(color = "black"),
       axis.title = element_text(face = "bold")
     ) +
-    scale_x_continuous(expand = c(0, 0)) +  
-   # scale_y_continuous(expand = c(0, 0)) +  
+    scale_x_continuous(expand = c(0, 0), 
+                       limits = xlims,
+                       labels = scales::label_number(accuracy = 0.1)  # Format to 1 decimal place
+    )+
   #  scale_y_continuous(expand = c(0, 0), limits = c(0, 600)) +  
     
     theme(
@@ -534,12 +561,13 @@ plot_ownership_distribution <- function(data, x_var, x_axis_title, title) {
     )
 }
 
-
+hab_points <- hab_points %>% left_join(pt_elevation)
 
 edge_ownership <- plot_ownership_distribution(hab_points, 
                                               x_var = "edgeRook_2000_40",
                                               x_axis_title = "Proportion Edge Amount (2km)",
-                                              title = "Distribution of Edge Amount in 2km Buffers by Ownership")
+                                              title = "Distribution of Edge Amount in 2km Buffers by Ownership", 
+                                              xlims = c(0,0.1))
 
 habitat_ownership <- plot_ownership_distribution(hab_points, 
                                                  x_var ="habAmountDich_2000", 
@@ -551,14 +579,14 @@ habitat_ownership
 #test for 100 m buffers
 edge_ownership100 <- plot_ownership_distribution(hab_points, "edgeRook_100_40",
                                               x_axis_title = "Proportion Edge Amount (100 m)",
-                                              "Distribution of Edge Amount in 100 m  Buffers by Ownership")
+                                              "Distribution of Edge Amount in 100 m  Buffers by Ownership"
+                                              )
 
 habitat_ownership100 <- plot_ownership_distribution(hab_points, "habAmountDich_100", 
                                                  x_axis_title = "Proportion Habitat Amount (100 m)",
                                                  "Distribution of Habitat Amount in 100 m Buffers by Ownership")
 edge_ownership100
 habitat_ownership100
-
 # #=================================================
 # #What does ownership look like close to the coast? 
 # #=================================================
@@ -633,63 +661,6 @@ ggsave(
   device = "png",                       # Output format
   bg = "white"                          # Set background to white
 )
-# 
-# 
-# ggsave(
-#   filename = "Figures/forescasted_CUMALATIVE_frag_with_linear_2km_hab_loss_plot.png",               # File path and name
-#   plot = frag_linear_loss_cumalative_plot,          
-#   width = 10,                            # Width in inches (publication size)
-#   height = 8,                           # Height in inches (publication size)
-#   dpi = 300,                            # Resolution for publication (300 DPI)
-#   units = "in",                         # Units for width and height
-#   device = "png",                       # Output format
-#   bg = "white"                          # Set background to white
-# )
-# 
-# ggsave(
-#   filename = "Figures/forescasted_CUMALATIVE2_frag_with_linear_2km_hab_loss_plot.png",               # File path and name
-#   plot = frag_linear_loss_cumalative_plot2,          
-#   width = 10,                            # Width in inches (publication size)
-#   height = 8,                           # Height in inches (publication size)
-#   dpi = 300,                            # Resolution for publication (300 DPI)
-#   units = "in",                         # Units for width and height
-#   device = "png",                       # Output format
-#   bg = "white"                          # Set background to white
-# )
-# 
-# ggsave(
-#   filename = "Figures/forescasted_quadratic_frag_with__2km_hab_loss_plot.png",               # File path and name
-#   plot = frag_quadratic_loss_plot,          
-#   width = 10,                            # Width in inches (publication size)
-#   height = 8,                           # Height in inches (publication size)
-#   dpi = 300,                            # Resolution for publication (300 DPI)
-#   units = "in",                         # Units for width and height
-#   device = "png",                       # Output format
-#   bg = "white"                          # Set background to white
-# )
-# 
-# ggsave(
-#   filename = "Figures/forescasted_nShaped_frag_with__2km_hab_loss_plot.png",               # File path and name
-#   plot = frag_nShaped_loss_plot,          
-#   width = 10,                            # Width in inches (publication size)
-#   height = 8,                           # Height in inches (publication size)
-#   dpi = 300,                            # Resolution for publication (300 DPI)
-#   units = "in",                         # Units for width and height
-#   device = "png",                       # Output format
-#   bg = "white"                          # Set background to white
-# )
-# 
-# 
-# ggsave(
-#   filename = "Figures/forescasted_nShapedLoess2_frag_with__2km_hab_loss_plot.png",               # File path and name
-#   plot = frag_nShapedLoess_loss_plot,          
-#   width = 10,                            # Width in inches (publication size)
-#   height = 8,                           # Height in inches (publication size)
-#   dpi = 300,                            # Resolution for publication (300 DPI)
-#   units = "in",                         # Units for width and height
-#   device = "png",                       # Output format
-#   bg = "white"                          # Set background to white
-# )
 
 #Export fragmentation and habitat amount for points in hab_points (117,290 pts)
 ggsave(
@@ -713,6 +684,30 @@ ggsave(
   device = "png",                       # Output format
   bg = "white"                          # Set background to white
 )
+
+#at 100m 
+ggsave(
+  filename = "Figures/edge100_amount_by_actor.png",               # File path and name
+  plot = edge_ownership100,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
+ggsave(
+  filename = "Figures/hab100_amount_by_actor.png",               # File path and name
+  plot = habitat_ownership100 ,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
 
 ggsave(
   filename = "Figures/edge_01_increase.png",               # File path and name

@@ -7,6 +7,8 @@ library(terra)
 library(ggcorrplot)
  options(scipen = 999)
 
+can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif") #canopy cover of conifers
+ 
 
 #Information on predictor variables ####
 {
@@ -46,10 +48,17 @@ library(ggcorrplot)
 landscapeVars  <- read.csv("Inputs/LandscapeVariables.csv")
 siteData  <- read.csv("Inputs/siteData.csv")
 surveys  <- read.csv("Inputs/MurreletSurveys.csv") %>% dplyr::select(-X) #multipe repeats a some stations
-pointsInRoiAndSamplingWindow  <- read.csv("Inputs/pointsInRoiAndSamplingWindow.csv")
+pointsInRoiAndSamplingWindow  <- read.csv("Inputs/pointsInRoiAndSamplingWindow.csv") %>%  
+  mutate(crs = "EPSG:32610")
 
-surveys %>% filter(detected == 1) %>% count()
+#take a look at the stratification of survey points 
 
+# Create SpatVector in UTM Zone 10N (EPSG:32610)
+points_utm <- vect(pointsInRoiAndSamplingWindow, geom = c("utmE", "utmN"), crs = "EPSG:32610")
+# Transform to EPSG:5070 (NAD83 / Conus Albers)
+points_5070 <- project(points_utm, "EPSG:5070")
+plot(can_cov, main = "Sampled points on can cov")
+plot(points_5070, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 
 #read in PC1 data calculated in script 1 #
 PC1_all <- read.csv("Outputs/PC1_scaled_inverted.csv") %>%  
@@ -170,5 +179,26 @@ cor_matrix <- analysisSites %>%
 # This includes detection data (`y`), site-level covariates (`siteCovs`), and observation-level covariates (`obsCovs`)
 analysisData = unmarkedFrameOccu(y = y, siteCovs = analysisSites, obsCovs = surveyCovs)
 
+#---------------------------------
+#Get a summary of the elevational istribution of points points: 
+#---------------------------------
+#Get an elevation DEM in the correct projection (takes 20mins or so)
+# can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif") #canopy cover of conifers
+# elevation <- rast("Rasters/DEMs/dem30m.tif")
+# 
+# #Step 1: Reproject elevation to EPSG:5070 (same as can_cov)
+# elev_proj <- project(elevation, can_cov, method = "bilinear")
+# 
+# # Step 2: Crop to the extent of can_cov
+# elev_crop <- crop(elev_proj, can_cov)
+#
+#elevational_range <- terra::extract(elev_crop, points_5070, bind = TRUE)
+#elevational_range_df <-   as.data.frame(elevational_range) #%>% 
+  # dplyr::select(id, cancov_2020) %>%  
+  # rename(point_id =  id) 
+#write.csv(elevational_range_df, "Inputs/pointsInRoiAndSamplingWindow_withDEM.csv")
+elevational_range_df <- read.csv("Inputs/pointsInRoiAndSamplingWindow_withDEM.csv")
+hist(elevational_range_df$dem30m) 
+(max)
 #save  unmarked dataframe ####
 saveRDS(analysisData, file = "Outputs/analysisDataUnmarked.rds")

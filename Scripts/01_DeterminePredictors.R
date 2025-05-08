@@ -3,6 +3,7 @@
 
 #read in packages 
 library(tidyverse)
+library(terra)
 
 #read in inputs 
 
@@ -89,8 +90,17 @@ PC1 %>%
     axis.text = element_text(size = 12),
     axis.title = element_text(size = 14)
   )
-#Oregon nest and murrelet data
 
+#Get an elevation DEM in the correct projection
+can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif") #canopy cover of conifers
+elevation <- rast("Rasters/DEMs/dem30m.tif")
+
+#Step 1: Reproject elevation to EPSG:5070 (same as can_cov)
+elev_proj <- project(elevation, can_cov, method = "bilinear")
+
+# Step 2: Crop to the extent of can_cov
+elev_crop <- crop(elev_proj, can_cov)
+plot(elev_crop)
 
 ##########################################################################
 #save outputs #### 

@@ -87,7 +87,7 @@ plot(can_cov, add = TRUE)  # Overlay the can_cov raster to check alignment
 
 #check write rasters and check in qgis 
 
- # writeRaster(SDM2020, "Rasters/sdm_mamu2019.tif", overwrite=TRUE)
+ #writeRaster(SDM2020, "Rasters/sdm_mamu2020_pj.tif", overwrite=TRUE)
  # writeRaster(can_cov, "Rasters/can_cov2019.tif", overwrite=TRUE)
 
 #-------------------------------------------
@@ -519,8 +519,6 @@ checkPoints <- vect(all_df, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a 
 plot(ownership_raster_resampled, main = "Raster with 500m Grid Points")
 plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 
-##COME BACK TO!!!!
-#now extract the points - I think here there is a mistake happending
 extracted_ownership_values <- terra::extract(ownership_raster_resampled, points, bind = TRUE) %>% 
   as.data.frame() %>% 
   dplyr::select(id, Ownership_Data) %>% 
@@ -538,8 +536,10 @@ extracted_ownership_values %>% group_by(ownership) %>% count()
 ## saveRDS(ownership_data, "Outputs/ownership_random_points_pnw.rds")
 ## .........................
 
+
+
 #--------------------------------
-#finally add information on canopy cover so that we can use a forest/non-forest mask to filter points 
+# add information on canopy cover so that we can use a forest/non-forest mask to filter points 
 #now extract the points 
 
 can_cov_all_trees
@@ -552,6 +552,10 @@ extracted_cancov_values <- terra::extract(can_cov_all_trees, points, bind = TRUE
 # writeRaster(can_cov_all_trees, "Rasters/test_cancov_alltrees.tif")
 plot(can_cov, main = "Canopy Cover")
 plot(points, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+
+
+
+
 #====================================
 #final assembly and scaling of data ####
 #====================================
@@ -729,71 +733,26 @@ allhab100kmpoints_mean
   #  filter(distance_to_coastline < 100000) %>% 
   #filter(point_leve_habitat > 0) %>%
 
-#--------------------------------------------------------------------------------
-#Senstivity Analaysis: - how much binary murrelet habitat falls inside of each landownership shapefile 
-ownership
-habitat_binary
-#only need to run once
-#habitat_binary_ownership_proj <- project(habitat_binary, crs(ownership))
-#writeRaster(habitat_binary_ownership_proj, "SDM2020_binary_reprojected_to_ownership.tif", overwrite = TRUE)
-
-# Verify CRS alignment
-habitat_binary_ownership_proj
-ownership 
-habitat_binary_ownership_proj
-plot(habitat_binary_ownership_proj)
-plot(ownership)
-
-ownership_sf <- st_as_sf(ownership)
-
-# a bit of
-single_polygon <- ownership_sf[i, ]
-plot(single_polygon)
-# Use the 'frac' operation to get fractional cover of habitat/non-habitat within each ownership shapefile
-
-# Pre-allocate the list to the number of polygons
-frac_results_list <- vector("list", nrow(ownership_sf))
-
-# Loop over each polygon (shapefile) and compute fractional cover
-for (i in seq_len(nrow(ownership_sf))) {
-  # Extract the polygon
-  single_polygon <- ownership_sf[i, ]
-  
-  # Compute fractional cover for this polygon
-  frac_result <- exact_extract(habitat_binary_ownership_proj, single_polygon, "frac")
-  
-  # Store the result in the pre-allocated list
-  frac_results_list[[i]] <- data.frame(polygon_id = i, frac_result)
-  
-  # Optional: Print progress
-  if (i %% 100 == 0) cat("Processed", i, "polygons\n")
-}
-
-
-frac_results <- do.call(rbind, filtered_list)
-
-frac_results <- exact_extract(habitat_binary_ownership_proj, ownership_sf, "frac")
-saveRDS(frac_results, "frac_cover_by_ownership_shp.rds")
-#collapse into one 
-
-#extract habitat amount for each ownership shapefile 
 
 #EXPORT OUTPUT #####
 saveRDS(final2020, "Outputs/PNW_2020_extracted_covars.rds")
 write.csv(final2020, "Outputs/PNW_2020_extracted_covars.csv")
 #read in for quick plotting 
-final2020 <- read.csv("PNW_2020_extracted_covars.csv")
+final2020 <- read.csv("Outputs/PNW_2020_extracted_covars.csv")
 
 checkPoints <- vect(final2020, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
 plot(SDM2020, main = "Raster with 500m Grid Points")
 plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+
+#add in information on elevation at each point 
+pt_elevation <- read.csv("Outputs/elevation_at_each_point.csv") 
 
 lowhabitat_points <- final2020 %>% 
   filter(habAmountDich_2000 <0.05)
 
 lowhabitat_points_federal <- final2020 %>% 
   filter(habAmountDich_2000 <0.05) %>% 
-  filter(ownership == "Federal")
+  filter(ownership == "Federal") 
 lowhabitat_points_state <- final2020 %>% 
   filter(habAmountDich_2000 <0.05) %>% 
   filter(ownership == "State")
@@ -804,6 +763,26 @@ lowhabitat_points_privateNonindustrial <- final2020 %>%
   filter(habAmountDich_2000 <0.05) %>% 
   filter(ownership == "Private Non-industrial")
 
+
+lowhabitat_points_federal_84000m <- final2020 %>% 
+  filter(habAmountDich_2000 <0.05) %>% 
+  filter(ownership == "Federal") %>%  
+  filter(distance_to_coastline <84000) %>%  
+  filter(cancov_2020 >0) %>%  
+  left_join(pt_elevations)
+
+lowhabitat_points_private_industrial_84000m <- final2020 %>% 
+  filter(habAmountDich_2000 <0.05) %>% 
+  filter(ownership == "Private Industrial") %>%  
+  filter(distance_to_coastline <84000) %>%  
+  filter(cancov_2020 >0) %>%  
+  left_join(pt_elevations) %>%  
+  filter()
+
+checkPoints <- vect(lowhabitat_points_federal_84000m, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
+plot(SDM2020, main = "Raster with 500m Grid Points")
+plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+
 #test what's happening in Qgis
 #write.csv(final2020, "PNW_2020_extracted_covars.csv")
 #writeRaster(ownership_raster_resampled, "Rasters/ownership_raster_resampled.tif", overwrite=TRUE)
@@ -812,4 +791,6 @@ write.csv(lowhabitat_points_federal, "Rasters/federal_points_less005_2km_hab_amo
 write.csv(lowhabitat_points_state, "Rasters/state_points_less005_2km_hab_amount.csv")
 write.csv(lowhabitat_points_private_industrial, "Rasters/privateIndustrial_points_less005_2km_hab_amount.csv")
 write.csv(lowhabitat_points_privateNonindustrial, "Rasters/privateNonIndustrial_points_less005_2km_hab_amount.csv")
-
+write.csv(lowhabitat_points_federal_84000m, "Rasters/lowhabitat_points_federal_84000m_below1637m.csv")
+write.csv(lowhabitat_points_private_industrial_84000m, "Rasters/lowhabitat_points_private_industrial_84000m_below1637m.csv")
+s
