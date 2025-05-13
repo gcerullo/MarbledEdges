@@ -208,27 +208,32 @@ saveRDS(habAmount, "Outputs/PNW_2020_habamount.rds")
 #Confusion matrix
 #habitat      #open canopy         meaning 
 #   8              5                40 =   habitat that is also open canopy (should be v rare/nonexistent)
-#   8              2                16 =   habitat is not in open canopy (ie closed canopy habitat)
-#   4              5                20 =   non-habitat open canopy 
+#   8              2                16 =    closed canopy habitat (ie habitat is not in open canopy)
+#   4              5                20 =   open canopy edge non-forest habitat 
 #   4              2                8 =    non-habitat closed canopy
 
 # identify forest edge cells - which are layers with conifer canopy coverage <= 40%
 open_canopy <- ifel(can_cov <= 4000, 5, 2) #5 is open canopy, 2 is closed canopy
 #plot(open_canopy)
 habitat_binary2 <- ifel(SDM2020 >= 45, 8, 4)     #8 is habitat, 4 is non-habitat 
-#plot(habitat_binary2)
+plot(habitat_binary2)
+
+
 intermediate_raster <- open_canopy * habitat_binary2
 #plot(intermediate_raster)
-#take only closed canopy habitat (16) and potential hardedges (20
+#take only closed canopy habitat (16) and open-canopy non-habitat (20)
 # Filter raster: keep only values 16 or 20, set other values to NA
 habitat_and_edge <- intermediate_raster
 habitat_and_edge[!(habitat_and_edge == 16 | habitat_and_edge == 20)] <- NA
 plot(habitat_and_edge)
 # Count the number of non-NA values in the raster
 freq_table <- terra::freq(habitat_and_edge)
+#layer value     count
+#      16        23399003     closed canopy habitat
+#       20      318127661     open-canopy non-habitat
 
 
-# #find closed canopy habitat that bordered hard edges (or hard edges that border closed caopy)  
+# #find closed canopy habitat that bordered hard edges (or hard edges that border closed canopy)  
 # class_difference <- boundaries(habitat_and_edge, inner = TRUE, directions = 4, classes = FALSE)
 #The above is too slow so I have written a custom approach below (only need to run once): 
 
@@ -277,47 +282,18 @@ boundary_raster <- focal(habitat_and_edge,
                              return(0)  # Not a boundary
                            }
                          }, pad = TRUE)  # Keep padding enabled
- writeRaster(boundary_raster, "Rasters/v2_intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif",overwrite=TRUE)
+# writeRaster(boundary_raster, "Rasters/v2_intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif",overwrite=TRUE)
 
-# OLD VERSION: 
-#boundary_raster <- focal(habitat_and_edge, w = matrix(c(0, 1, 0, 1, 0, 0, 1, 0, 0), 3, 3), 
-#                          fun = function(x, ...) {
-#                            # Update processed cell counter
-#                            processed_cells <<- processed_cells + 1
-#                            
-#                            # Print progress every 1000 cells processed
-#                            if (processed_cells %% 1000 == 0) {
-#                              progress <- round((processed_cells / total_cells) * 100, 2)
-#                              message("Processing: ", progress, "%")
-#                            }
-#                            
-#                            # Check if the focal cell (center) is NA
-#                            center_value <- x[5]
-#                            if (is.na(center_value)) {
-#                              return(NA)  # Skip if the focal cell is NA
-#                            }
-#                            
-#                            # Check if any of the 4-connected neighbors (N, S, E, W) are different from the focal cell
-#                            # Only consider neighbors that are NOT NA
-#                            neighbors <- x[c(1, 3, 7, 9)]  # N, S, E, W
-#                            valid_neighbors <- neighbors[!is.na(neighbors)]  # Remove NA neighbors
-#                            
-#                            if (any(valid_neighbors != center_value)) {
-#                              return(1)  # Boundary cell if any non-NA neighbor is different
-#                            } else {
-#                              return(0)  # Not a boundary cell
-#                            }
-#                          }, pad = TRUE)
-#writeRaster(boundary_raster, "Rasters/intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif")
 #----------------------------------------------------------------
 
-#can start here: nb, this shows all pixels where murrelet habitat meets non-habitat 
+#can start here: nb, this shows all pixels where closed canopy murrelet habitat meets open canopy non-habitat 
 boundary_raster <- rast("Rasters/v2_intermediate_boundaries_PNW_habitat_nonhab_edged_murrelet.tif")
 plot(boundary_raster)
 terra::freq(boundary_raster)
 
 #filters to only murrelet habitat that meets an edge
 edgeforesthabitat <- boundary_raster*habitat_binary
+writeRaster(edgeforesthabitat, "Rasters/murrelet_045hab2020_meets_edge.tif")
 
 plot(habitat_binary)
 plot(edgeforesthabitat) 
@@ -593,36 +569,57 @@ checkPoints <- vect(final2020, geom = c("x", "y"), crs = "EPSG:5070")  # Specify
 plot(SDM2020, main = "Raster with 500m Grid Points")
 plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 
-
+#---------------------------------------------------------------------------
 #quickly summarise data #### (can read in final2020 at bottom)
-
+#---------------------------------------------------------------------------
+#what was the elevational range of murrelets in dataset from pre-clearance surveys? 
+elevational_range_df <- read.csv("Inputs/pointsInRoiAndSamplingWindow_withDEM.csv")
+hist(elevational_range_df$dem30m) 
+max(elevational_range_df$dem30m, na.rm = TRUE) #no surveys above 1636.42 metres! 
+q95elev = as.numeric(quantile(elevational_range_df$dem30m, 0.95, na.rm = TRUE))
+q90elev = as.numeric(quantile(elevational_range_df$dem30m, 0.90, na.rm = TRUE))
+q80elev = as.numeric(quantile(elevational_range_df$dem30m, 0.80, na.rm = TRUE))
 
 quickplotSummaryMedianSD <- function(x, plot_title = "Median and Standard Deviation for Each Variable") {
   
   quickplotSummary <- x %>%
+    filter(!ownership == "Unknown") %>% 
+    filter(cancov_2020 >0 ) %>%  
+    filter(distance_to_coastline > 100000) %>%  
+    filter(dem30m < q95elev) %>% 
+    
+    
     group_by(ownership) %>%
     summarise(
       across(
         c(habAmountDich_100, habAmountDich_2000, edgeRook_100_40, edgeRook_2000_40, point_leve_habitat),
-        list(median = median, sd = sd),
+        list(
+          median = median,
+          sd = sd,
+          n = ~n()
+        ),
         .names = "{.col}_{.fn}"
       )
     ) %>%
     pivot_longer(
       cols = -ownership,
       names_to = c("variable", "stat"),
-      names_pattern = "(.*)_(median|sd)",
+      names_pattern = "(.*)_(median|sd|n)",
       values_to = "value"
     ) %>%
     pivot_wider(
       names_from = stat,
       values_from = value
+    ) %>%
+    mutate(
+      lower_ci = median - 1.96 * (sd / sqrt(n)),
+      upper_ci = median + 1.96 * (sd / sqrt(n))
     )
   
   # plot summaries
   ggplot(quickplotSummary, aes(x = ownership, y = median, color = ownership)) +
     geom_point(size = 3) +
-    geom_errorbar(aes(ymin = median - sd, ymax = median + sd), width = 0.2) +
+    geom_errorbar(aes(ymin = median - lower_ci, ymax = median + upper_ci), width = 0.2) +
     facet_wrap(~ variable, scales = "free_y") +
     labs(
       title = plot_title,
@@ -658,6 +655,11 @@ quickplotSummaryMean95 <- function(x, plot_title = "Mean and 95% CI for Each Var
   
   quickplotSummary <- x %>%
     filter(!ownership == "Unknown") %>% 
+    filter(cancov_2020 >0 ) %>%  
+    filter(distance_to_coastline > 100000) %>%  
+    filter(dem30m < q95elev) %>% 
+   
+    
     group_by(ownership) %>%
     summarise(
       across(
@@ -738,7 +740,8 @@ allhab100kmpoints_mean
 saveRDS(final2020, "Outputs/PNW_2020_extracted_covars.rds")
 write.csv(final2020, "Outputs/PNW_2020_extracted_covars.csv")
 #read in for quick plotting 
-final2020 <- read.csv("Outputs/PNW_2020_extracted_covars.csv")
+pt_elevations = read.csv("Outputs/elevation_at_each_point.csv")
+final2020 <- read.csv("Outputs/PNW_2020_extracted_covars.csv") %>%  left_join(pt_elevations)
 
 checkPoints <- vect(final2020, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
 plot(SDM2020, main = "Raster with 500m Grid Points")
@@ -764,20 +767,21 @@ lowhabitat_points_privateNonindustrial <- final2020 %>%
   filter(ownership == "Private Non-industrial")
 
 
-lowhabitat_points_federal_84000m <- final2020 %>% 
+lowhabitat_points_federal_100000m_elev794m <- final2020 %>% 
   filter(habAmountDich_2000 <0.05) %>% 
   filter(ownership == "Federal") %>%  
-  filter(distance_to_coastline <84000) %>%  
+  filter(distance_to_coastline <100000) %>%  
   filter(cancov_2020 >0) %>%  
-  left_join(pt_elevations)
+  left_join(pt_elevations) %>% 
+  filter(dem30m < q90elev)
 
-lowhabitat_points_private_industrial_84000m <- final2020 %>% 
+lowhabitat_points_private_industrial_100000m_elev794m <- final2020 %>% 
   filter(habAmountDich_2000 <0.05) %>% 
   filter(ownership == "Private Industrial") %>%  
-  filter(distance_to_coastline <84000) %>%  
+  filter(distance_to_coastline <100000) %>%  
   filter(cancov_2020 >0) %>%  
   left_join(pt_elevations) %>%  
-  filter()
+  filter(dem30m < q90elev)
 
 checkPoints <- vect(lowhabitat_points_federal_84000m, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
 plot(SDM2020, main = "Raster with 500m Grid Points")
@@ -791,6 +795,6 @@ write.csv(lowhabitat_points_federal, "Rasters/federal_points_less005_2km_hab_amo
 write.csv(lowhabitat_points_state, "Rasters/state_points_less005_2km_hab_amount.csv")
 write.csv(lowhabitat_points_private_industrial, "Rasters/privateIndustrial_points_less005_2km_hab_amount.csv")
 write.csv(lowhabitat_points_privateNonindustrial, "Rasters/privateNonIndustrial_points_less005_2km_hab_amount.csv")
-write.csv(lowhabitat_points_federal_84000m, "Rasters/lowhabitat_points_federal_84000m_below1637m.csv")
-write.csv(lowhabitat_points_private_industrial_84000m, "Rasters/lowhabitat_points_private_industrial_84000m_below1637m.csv")
+write.csv(lowhabitat_points_federal_100000m_elev794m, "Rasters/lowhabitat_points_federal_100000m_elev794m.csv")
+write.csv(lowhabitat_points_private_industrial_100000m_elev794m, "Rasters/lowhabitat_points_private_industrial_100000m_elev794m.csv")
 s
