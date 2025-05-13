@@ -85,6 +85,7 @@ analysisSites = siteData %>%
   #only keep data for which we have data on PC1 value for 1 yr bfore
   filter(year >= earliest_PC1_year) 
 
+
 #join site data with murrelet surveys and PC1 
 analysisSurveys = analysisSites %>% 
   dplyr::select(id, year) %>% 
