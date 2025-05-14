@@ -316,7 +316,7 @@ predict_data$habAmount <- factor(
 
 # Define a  color palette with muted tones
 nature_palette <- c("Low habitat" = "#D55E00",   # Grey for "Bad" condition
-                    "Medium habitat " = "#A0A0A0", # Lighter grey for "Neutral"
+                    "Medium habitat" = "#A0A0A0", # Lighter grey for "Neutral"
                     "High habitat" = "#56B4E9")   # Muted blue for "Good" condition
 
 ocean_murrelet_hab_occ <- 
@@ -381,7 +381,7 @@ ggsave(
 ggsave(
   filename = "Figures/occupancy_by_edge_and_habitat_amount.png",               # File path and name
   plot = ocean_murrelet_hab_occ,          
-  width = 16,                            # Width in inches (publication size)
+  width = 10,                            # Width in inches (publication size)
   height = 8,                           # Height in inches (publication size)
   dpi = 300,                            # Resolution for publication (300 DPI)
   units = "in",                         # Units for width and height
