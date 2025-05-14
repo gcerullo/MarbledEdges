@@ -10,8 +10,6 @@ source("scripts/02_OrganiseMurreletData.R")
 analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
 model <- readRDS("Models/final_model_5thMay2025.rds")
 
-
-
 # Step 1: Extract site-level covariates from the unmarked object
 # -------------------------------------------------------------
 # Step 1: Extract Mean Values for `scaleDoy` and `scaleDoy2`
