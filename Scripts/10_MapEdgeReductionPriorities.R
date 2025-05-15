@@ -9,7 +9,7 @@ results_all_edges <- readRDS("Outputs/ReduceLandscapeAndLocalEdges.rds")
 final2020 <- readRDS("Outputs/PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8
   as.data.frame() #%>%  
 
-long_lat <- final2020 %>% select(point_id, x, y)
+long_lat <- final2020 %>% dplyr::select(point_id, x, y)
 
 results_all_edges <- results_all_edges %>% left_join(long_lat)
 can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif") #canopy cover of conifers
@@ -19,11 +19,11 @@ can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif
 #carry out initial filter
 results_all_edges <- results_all_edges %>% 
   filter(cancov_2020 > -1) %>% #remove non-forest habitat points
-  filter( distance_to_coastline < 100000) %>% #remove points v far from coast 
+  filter( distance_to_coastline < 60000) %>% #remove points v far from coast 
  filter(dem30m < 600)  #remove points above a given altitude
 
 #get the occupancy values at each point and edge reduction amount
-decreaseEdgegoodYears <- results_all_edges %>% select(point_id, ownership, Occupancy, decrease_factor, SE,OceanYear,x,y) %>% 
+decreaseEdgegoodYears <- results_all_edges %>% dplyr::select(point_id, ownership, Occupancy, decrease_factor, SE,OceanYear,x,y) %>% 
   filter(OceanYear == "Good Ocean Years") %>% 
   pivot_wider(
     names_from = decrease_factor,
@@ -39,7 +39,7 @@ decreaseEdgegoodYears <- results_all_edges %>% select(point_id, ownership, Occup
 
 
 
-decreaseEdgebadYears <- results_all_edges %>% select(point_id, ownership, Occupancy, decrease_factor, SE,OceanYear,x,y) %>% 
+decreaseEdgebadYears <- results_all_edges %>% dplyr::select(point_id, ownership, Occupancy, decrease_factor, SE,OceanYear,x,y) %>% 
   filter(OceanYear == "Bad Ocean Years") %>% 
   pivot_wider(
     names_from = decrease_factor,
@@ -84,28 +84,27 @@ ggplot(filtered_data, aes(x = {{ x_var }})) +
             aes(x = Inf, y = Inf, label = paste0("n = ", count)),
             hjust = 1.2, vjust = 1.5, size = 5, inherit.aes = FALSE) +
   labs(
-    title = "How much would reducing edge 50% increase occupancy by ownership?",
-    x = "Occupancy Change Quantile",
+    x = "Percentiles of occupancy increase from reducing edge amount",
     y = "Frequency"
   ) +
   facet_wrap(~ ownership, scales = "free_y", ncol = 3, nrow = 2) +
   theme_minimal(base_size = 16) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold"),
-    axis.text = element_text(color = "black"),
-    axis.title = element_text(face = "bold"),
-    panel.grid.major = element_line(color = "gray80", linetype = "dashed"),
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "ivory", color = NA)
-  ) +
-  scale_x_continuous(
-    expand = c(0, 0),
-    breaks = 1:10,
-    labels = scales::label_number(accuracy = 1)
+    legend.position = "top",  # Position the legend at the top
+    legend.title = element_blank(),  # Increase legend title size for clarity
+    legend.text = element_text(size = 14),  # Increase legend text size for better readability
+    axis.title = element_text(size = 16),  # Increase axis title font size
+    axis.text = element_text(size = 14),  # Increase axis label font size
+    panel.grid.major = element_blank(),  # No major gridlines
+    panel.border = element_rect(color = "black", fill = NA, size = 1)
   )
 }
 
-quantilesOccChange50quantile <- plot_data_histogram(decreaseEdgegoodYears, OccChange50quantile)
+quantilesOccChange50quantileGoodYears <- plot_data_histogram(decreaseEdgegoodYears, OccChange50quantile)
+quantilesOccChange50quantileBadYears <- plot_data_histogram(decreaseEdgegoodYears, OccChange50quantile)
+
+quantilesOccChange100quantileGoodYears <- plot_data_histogram(decreaseEdgegoodYears, OccChange100quantile)
+quantilesOccChange100quantileBadYears <- plot_data_histogram(decreaseEdgegoodYears, OccChange100quantile)
 plot_data_histogram(decreaseEdgegoodYears, OccChange50quantile)
 
 #-----------------------------------------------
@@ -155,7 +154,6 @@ bad_raster[bad_raster == 0] <- NA
 plot(bad_raster)
 
 
-
 #reducing edge here would be most beneficial in both good and bad ocean years
 both_have_values <- bad_raster %>% mask(good_raster)
 plot(both_have_values)
@@ -167,130 +165,148 @@ plot(good_raster)
 plot(bad_raster)
 plot(both_have_values)
 
-writeRaster(good_raster, "Rasters/GoodYear_top90thpercentilOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
-writeRaster(bad_raster, "Rasters/BadYear_top90thpercentilOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
-writeRaster(both_have_values, "Rasters/GoodAndBad_top90thpercentilOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
+# writeRaster(good_raster, "Rasters/GoodYear_top90thpercentilOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
+# writeRaster(bad_raster, "Rasters/BadYear_top90thpercentilOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
+# writeRaster(both_have_values, "Rasters/GoodAndBad_top90thpercentilOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
 
 #-------------------------------------------
-#Final plots ####
-graphics.off()
+#Build and export plotting function:
+#step-by-step plotting can be found at the bottom
 
-# Make sure the 'Figures' directory exists or create it
-if (!dir.exists("Figures")) {
-  dir.create("Figures")
+map_edge_priority <- function(
+    good_data,   #decide to plot for good or bad years
+    bad_data,
+    quant_col = "OccChange50quantile",  #e.g. look at Occ
+    occchange_col = "OccChange50",
+    se_col = "SE_0.5",
+    quantile_threshold = 9,
+    background_raster,
+    output_prefix = "Figures/priority_"
+) {
+  library(terra)
+  
+  # Filter top priority areas
+  good_top <- good_data[good_data[[quant_col]] > quantile_threshold, ]
+  bad_top <- bad_data[bad_data[[quant_col]] > quantile_threshold, ]
+  
+  # Convert to spatial objects
+  good_sf <- vect(good_top, geom = c("x", "y"), crs = "EPSG:5070")
+  bad_sf  <- vect(bad_top, geom = c("x", "y"), crs = "EPSG:5070")
+  
+  # Template raster
+  template <- rast(good_sf, resolution = 1000)
+  crs(template) <- "EPSG:5070"
+  
+  # Rasterize for each input
+  good_raster_bin <- !is.na(rasterize(good_sf, template, field = quant_col)) * 1
+  bad_raster_bin  <- !is.na(rasterize(bad_sf, template, field = quant_col)) * 1
+  good_raster_bin[good_raster_bin == 0] <- NA
+  bad_raster_bin[bad_raster_bin == 0] <- NA
+  
+  both_raster_bin <- mask(bad_raster_bin, good_raster_bin)
+  both_raster_bin[both_raster_bin == 0] <- NA
+  
+  good_occ <- rasterize(good_sf, template, field = occchange_col, fun = "first", background = NA)
+  good_se  <- rasterize(good_sf, template, field = se_col, fun = "first", background = NA)
+  
+  bad_occ  <- rasterize(bad_sf, template, field = occchange_col, fun = "first", background = NA)
+  bad_se   <- rasterize(bad_sf, template, field = se_col, fun = "first", background = NA)
+  
+  # Color palettes
+  occ_pal <- colorRampPalette(c("blue", "white", "red"))(100)
+  se_pal <- colorRampPalette(c("white", "darkorange"))(100)
+  
+ 
+  # Create output directory
+  dir.create(dirname(output_prefix), showWarnings = FALSE)
+  
+  # Export map: binary priorities
+  png(paste0(output_prefix, "binary_map.png"), width = 1500, height = 1200, res = 300)
+  par(mfrow = c(1, 3), mar = c(0.5, 0.5, 3, 0.5))
+  
+  # Named list of rasters and their colors
+  priority_rasters <- list(
+    "Good Ocean Year Priorities" = list(r = good_raster_bin, col = "#56B4E9"),
+    "Bad Ocean Year Priorities" = list(r = bad_raster_bin, col =   "#D55E00"),
+    "Both" = list(r = both_raster_bin, col = "darkgreen")
+  )
+  
+ 
+  
+  # Plot loop
+  for (plot_name in names(priority_rasters)) {
+    plot(background_raster,
+         col = gray.colors(100, start = 1, end = 0),
+         legend = FALSE, axes = FALSE, box = TRUE)
+    
+    plot(priority_rasters[[plot_name]]$r,
+         col = priority_rasters[[plot_name]]$col,
+         legend = FALSE, axes = FALSE, box = FALSE, add = TRUE)
+    
+    title(plot_name, line = 0.5, cex.main = 1)
+  }
+  
+  mtext("Priority areas for reducing edge amount", 
+        side = 1, line = 2, outer = TRUE, cex = 1.5, font = 2)
+  dev.off()
+  
+  # Export map: continuous occ change + SE
+  png(paste0(output_prefix, "occ_se_map.png"), width = 3000, height = 3000, res = 300)
+  par(mfrow = c(2, 2), mar = c(1, 1, 3, 1), oma = c(4, 2, 2, 2))
+  
+  plot(background_raster, col = gray.colors(100, start = 1, end = 0),
+       legend = FALSE, axes = FALSE, box = FALSE)
+  plot(good_occ, col = occ_pal, legend = TRUE, add = TRUE)
+  title("Good Year Occupancy Change", line = 0.2, cex.main = 1)
+  
+  plot(background_raster, col = gray.colors(100, start = 1, end = 0),
+       legend = FALSE, axes = FALSE, box = FALSE)
+  plot(good_se, col = se_pal, legend = TRUE, add = TRUE)
+  title("Good Year Standard Error", line = 0.2, cex.main = 1)
+  
+  plot(background_raster, col = gray.colors(100, start = 1, end = 0),
+       legend = FALSE, axes = FALSE, box = FALSE)
+  plot(bad_occ, col = occ_pal, legend = TRUE, add = TRUE)
+  title("Bad Year Occupancy Change", line = 0.2, cex.main = 1)
+  
+  plot(background_raster, col = gray.colors(100, start = 1, end = 0),
+       legend = FALSE, axes = FALSE, box = FALSE)
+  plot(bad_se, col = se_pal, legend = TRUE, add = TRUE)
+  title("Bad Year Standard Error", line = 0.2, cex.main = 1)
+  
+  mtext("Occupancy Change and Uncertainty Across Ocean Years",
+        side = 1, line = 2, outer = TRUE, cex = 1.5, font = 2)
+  dev.off()
+  
+  message("Maps saved to: ", output_prefix, "*")
 }
 
-# Open PNG device for exporting the plot
-png("Figures/priority_areas_figure.png", width = 3000, height = 1200, res = 300)
+map_edge_priority(
+  good_data = decreaseEdgegoodYears,
+  bad_data = decreaseEdgebadYears,
+  quant_col = "OccChange50quantile", 
+  occchange_col = "OccChange50",
+  se_col = "SE_0.5",
+  background_raster = background,
+  output_prefix = "Figures/edge_50pc_"
+)
 
-
-#background <- resample(can_cov, good_raster, method = "bilinear")
-
-# Set up 1-row, 3-column layout
-par(mfrow = c(1, 3), mar = c(1, 1, 1, 1))
-
-# Plot 1: Good
-plot(background, 
-     col = gray.colors(100, start = 1, end = 0), 
-     main = "Good Ocean Year Priorities", 
-     legend = FALSE, 
-     axes = FALSE, 
-     box = TRUE)
-
-plot(good_raster,
-     col = "blue",
-     legend = FALSE,
-     axes = FALSE,
-     box = FALSE,
-     add = TRUE)
-
-# Plot 2: Bad
-plot(background, 
-     col = gray.colors(100, start = 1, end = 0), 
-     main = "Bad Ocean Year Priorities", 
-     legend = FALSE, 
-     axes = FALSE, 
-     box = TRUE)
-
-plot(bad_raster,
-     col = "orange",
-     legend = FALSE,
-     axes = FALSE,
-     box = FALSE,
-     add = TRUE)
-
-# Plot 3: Both
-plot(background, 
-     col = gray.colors(100, start = 1, end = 0), 
-     main = "Both", 
-     legend = FALSE, 
-     axes = FALSE, 
-     box = TRUE)
-
-plot(bad_raster,
-     col = "darkgreen",
-     legend = FALSE,
-     axes = FALSE,
-     box = TRUE,
-     add = TRUE)
-
-# Add a shared title
-mtext("Priority areas for reducing edge amount", 
-      side = 1, line = 2, outer = TRUE, cex = 1.5, font = 2)
-
-
-dev.off()
-
-
-#Plots of uncertainty and raw occ change estimates 
-
-# Export to PNG
-png("Figures/occ_change_se_panels.png", width = 3000, height = 3000, res = 300)
-
-# Set layout: 2 rows, 2 columns
-par(mfrow = c(2, 2), mar = c(1, 1, 2, 1), oma = c(4, 2, 2, 2))  # Adjust for minimal space
-
-# Define color scales
-occ_pal <- colorRampPalette(c("blue", "white", "red"))(100)   # For occupancy change
-se_pal  <- colorRampPalette(c("white", "darkorange"))(100)    # For standard error
-
-# Plot 1: Good Year Occupancy Change
-plot(background, col = gray.colors(100, start = 1, end = 0),
-     legend = FALSE, axes = FALSE, box = FALSE)
-plot(good_raster_OccChange, col = occ_pal, legend = TRUE, add = TRUE)
-title("Good Year Occupancy Change", line = 0.5, cex.main = 1)
-
-# Plot 2: Good Year SE
-plot(background, col = gray.colors(100, start = 1, end = 0),
-     legend = FALSE, axes = FALSE, box = FALSE)
-plot(good_raster_SE, col = se_pal, legend = TRUE, add = TRUE)
-title("Good Year Standard Error", line = 0.5, cex.main = 1)
-
-# Plot 3: Bad Year Occupancy Change
-plot(background, col = gray.colors(100, start = 1, end = 0),
-     legend = FALSE, axes = FALSE, box = FALSE)
-plot(bad_raster_OccChange, col = occ_pal, legend = TRUE, add = TRUE)
-title("Bad Year Occupancy Change", line = 0.5, cex.main = 1)
-
-# Plot 4: Bad Year SE
-plot(background, col = gray.colors(100, start = 1, end = 0),
-     legend = FALSE, axes = FALSE, box = FALSE)
-plot(bad_raster_SE, col = se_pal, legend = TRUE, add = TRUE)
-title("Bad Year Standard Error", line = 0.5, cex.main = 1)
-
-# Shared bottom title
-mtext("Occupancy Change and Uncertainty Across Ocean Years",
-      side = 1, line = 2, outer = TRUE, cex = 1.5, font = 2)
-
-# Finish
-dev.off()
+map_edge_priority(
+  good_data = decreaseEdgegoodYears,
+  bad_data = decreaseEdgebadYears,
+  quant_col = "OccChange100quantile",
+  occchange_col = "OccChange100",
+  se_col = "SE_1",
+  background_raster = background,
+  output_prefix = "Figures/edge_100pc_"
+)
 
 
 #EXPORTS ---------------------------------------------------
 #export quantiles:
 ggsave(
-  filename = "Figures/reducingEdge50pc_occIncrease_percentiles.tif",               # File path and name
-  plot = quantilesOccChange50quantile,          
+  filename = "Figures/reducingEdge50pc_occIncrease_percentiles_Good_years.tif",               # File path and name
+  plot = quantilesOccChange50quantileGoodYears,          
   width = 10,                            # Width in inches (publication size)
   height = 8,                           # Height in inches (publication size)
   dpi = 300,                            # Resolution for publication (300 DPI)
@@ -298,3 +314,136 @@ ggsave(
   device = "png",                       # Output format
   bg = "white"                          # Set background to white
 )
+
+ggsave(
+  filename = "Figures/reducingEdge50pc_occIncrease_percentiles_Bad_years_.tif",               # File path and name
+  plot = quantilesOccChange50quantileBadYears,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
+
+#---------------------------------------------------------------------
+# 
+# 
+# #ONE PLOT AT A TIME APPROACH:
+# 
+# #Final plots ####
+# graphics.off()
+# 
+# # Make sure the 'Figures' directory exists or create it
+# if (!dir.exists("Figures")) {
+#   dir.create("Figures")
+# }
+# 
+# # Open PNG device for exporting the plot
+# png("Figures/priority_areas_figure.png", width = 2000, height = 1200, res = 300)
+# 
+# 
+# background <- resample(can_cov, good_raster, method = "bilinear")
+# 
+# # Set up 1-row, 3-column layout
+# par(mfrow = c(1, 3), mar = c(1, 1, 1, 1))
+# 
+# # Plot 1: Good
+# plot(background, 
+#      col = gray.colors(100, start = 1, end = 0), 
+#      main = "Good Ocean Year Priorities", 
+#      legend = FALSE, 
+#      axes = FALSE, 
+#      box = TRUE)
+# 
+# plot(good_raster,
+#      col = "blue",
+#      legend = FALSE,
+#      axes = FALSE,
+#      box = FALSE,
+#      add = TRUE)
+# 
+# # Plot 2: Bad
+# plot(background, 
+#      col = gray.colors(100, start = 1, end = 0), 
+#      main = "Bad Ocean Year Priorities", 
+#      legend = FALSE, 
+#      axes = FALSE, 
+#      box = TRUE)
+# 
+# plot(bad_raster,
+#      col = "orange",
+#      legend = FALSE,
+#      axes = FALSE,
+#      box = FALSE,
+#      add = TRUE)
+# 
+# # Plot 3: Both
+# plot(background, 
+#      col = gray.colors(100, start = 1, end = 0), 
+#      main = "Both", 
+#      legend = FALSE, 
+#      axes = FALSE, 
+#      box = TRUE)
+# 
+# plot(bad_raster,
+#      col = "darkgreen",
+#      legend = FALSE,
+#      axes = FALSE,
+#      box = TRUE,
+#      add = TRUE)
+# 
+# # Add a shared title
+# mtext("Priority areas for reducing edge amount", 
+#       side = 1, line = 2, outer = TRUE, cex = 1.5, font = 2)
+# 
+# 
+# dev.off()
+# 
+# 
+# #Plots of uncertainty and raw occ change estimates 
+# 
+# # Export to PNG
+# png("Figures/occ_change_se_panels.png", width = 3000, height = 3000, res = 300)
+# 
+# # Set layout: 2 rows, 2 columns
+# par(mfrow = c(2, 2), mar = c(1, 1, 2, 1), oma = c(4, 2, 2, 2))  # Adjust for minimal space
+# 
+# # Define color scales
+# occ_pal <- colorRampPalette(c("blue", "white", "red"))(100)   # For occupancy change
+# se_pal  <- colorRampPalette(c("white", "darkorange"))(100)    # For standard error
+# 
+# # Plot 1: Good Year Occupancy Change
+# plot(background, col = gray.colors(100, start = 1, end = 0),
+#      legend = FALSE, axes = FALSE, box = FALSE)
+# plot(good_raster_OccChange, col = occ_pal, legend = TRUE, add = TRUE)
+# title("Good Year Occupancy Change", line = 0.5, cex.main = 1)
+# 
+# # Plot 2: Good Year SE
+# plot(background, col = gray.colors(100, start = 1, end = 0),
+#      legend = FALSE, axes = FALSE, box = FALSE)
+# plot(good_raster_SE, col = se_pal, legend = TRUE, add = TRUE)
+# title("Good Year Standard Error", line = 0.5, cex.main = 1)
+# 
+# # Plot 3: Bad Year Occupancy Change
+# plot(background, col = gray.colors(100, start = 1, end = 0),
+#      legend = FALSE, axes = FALSE, box = FALSE)
+# plot(bad_raster_OccChange, col = occ_pal, legend = TRUE, add = TRUE)
+# title("Bad Year Occupancy Change", line = 0.5, cex.main = 1)
+# 
+# # Plot 4: Bad Year SE
+# plot(background, col = gray.colors(100, start = 1, end = 0),
+#      legend = FALSE, axes = FALSE, box = FALSE)
+# plot(bad_raster_SE, col = se_pal, legend = TRUE, add = TRUE)
+# title("Bad Year Standard Error", line = 0.5, cex.main = 1)
+# 
+# # Shared bottom title
+# mtext("Occupancy Change and Uncertainty Across Ocean Years",
+#       side = 1, line = 2, outer = TRUE, cex = 1.5, font = 2)
+# 
+# # Finish
+# dev.off()
+# 
+# 
+# 
