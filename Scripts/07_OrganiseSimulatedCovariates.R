@@ -135,28 +135,36 @@ for (target in production_targets) {
   p_plot <- plot_data %>%  
     ggplot(aes(x = landscape_name, y = Occupancy)) +
     # Plot the points with jitterdodge (so they stay behind the boxplot)
-    geom_point(aes(color = OceanYear), size = 2, alpha = 0.05, position = position_jitterdodge(jitter.width = 0.1)) +  # Points with jitter
+    #geom_point(aes(color = OceanYear), size = 2, alpha = 0.05, position = position_jitterdodge(jitter.width = 0.1)) +  # Points with jitter
     # Plot the boxplots
-    geom_boxplot(aes(fill = OceanYear), color = "black", width = 0.5, outlier.shape = NA, outlier.size = NA) + 
+    geom_boxplot(aes(fill = OceanYear), color = "black", width = 0.5, outlier.shape = NA) + 
     # Custom fill colors for OceanYear
     scale_fill_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + 
     scale_color_manual(values = c("Good Ocean Years" = "#56B4E9", "Bad Ocean Years" = "#D55E00")) + # Color points
  #   facet_wrap(~CoastDist, ncol = 4) +  # Facet by Coastal Distance
-     theme_classic(base_size = 14) +
+    theme_minimal(base_size = 18) +  # Minimal theme with larger base font size
     ylim(0,1)+
-    labs(x = "Increasing landscape fragmentation ->", y = "Occupancy", 
-         title = paste("Occupancy in forest points across landscape (P =", target, ")")) +
+    labs(x = "Increasing landscape fragmentation ->", y = "Occupancy") +
     theme(
-      text = element_text(size = 16, family = "serif"),
-      axis.text.x = element_text(angle = 45, hjust = 1),
-      axis.title = element_text(size = 14),
-      plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
-      legend.title = element_blank()#legend.position = "none"  # No legend if you don't want it
-    )
+        legend.position = "top",  # Position the legend at the top
+        legend.title = element_blank(),  # Increase legend title size for clarity
+        legend.text = element_text(size = 14),  # Increase legend text size for better readability
+        axis.title = element_text(size = 16),  # Increase axis title font size
+        axis.text = element_text(size = 14),  # Increase axis label font size
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_blank(),  # No major gridlines
+        panel.border = element_rect(color = "black", fill = NA, size = 1)  # Add a thin border around the plot
+      )
+    
   
   
   # Save occupancy boxplot
-  ggsave(paste0("Figures/NEW_ForestPoints3way_Occupancy_Boxplot_p", target, ".png"), plot = p_plot, width = 10, height = 6, dpi = 300)
+  ggsave(paste0("Figures/ForestPointOccupancyInSimulatedLandscapes_P", target, ".png"),
+         plot = p_plot, 
+         width = 10,                            # Width in inches (publication size)
+         height = 8,                           # Height in inches (publication size)
+         dpi = 300,  
+         bg = "white")  # White background)
   
   # Export terra raster plots
   file_names <- basename(sources(landscapes))
