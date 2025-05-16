@@ -272,11 +272,56 @@ kfold_list <- list(k_fold_results_modelwithhabitat,k_fold_results_pc1,k_fold_res
 #Save outputs
 #save K-fold cross-validation performance 
 saveRDS(kfold_list, "Models/Kfold_model_performance.rds")
+kfold_list <- readRDS("Models/Kfold_model_performance.rds")
+print(kfold_list)
 
+#F-fold written summary:
+#Key Takeaways:
+#Best Overall Performance: Model 4 performs slightly better in terms of both RMSE and MAE estimates but has higher variability (SD) compared to others.
+#Most Consistent Performance: Model 1 exhibits the smallest variability in both RMSE and MAE, making it the most stable across folds.
+#Marginal Differences: The differences in RMSE and MAE estimates across models are minimal (0.0001 to 0.0003)
 #save best-performing model 
+
+
+#Save best model ####
 saveRDS(multiple_two_way, "Models/final_model_5thMay2025.rds" )
 
 
 
+# make a table of model coefficients####
 
+library(gt)
+library(broom)
 
+model <- readRDS("Models/final_model_5thMay2025.rds")
+# Extract coefficients
+
+# Helper function to extract, rename, tag, and compute 95% CI
+extract_component <- function(summary_component, component_name) {
+  as.data.frame(summary_component) %>%
+    setNames(c("Estimate", "StdError", "z", "PValue")) %>%
+    mutate(
+      Component = component_name,
+      CI_lower = Estimate - 1.96 * StdError,
+      CI_upper = Estimate + 1.96 * StdError
+    ) %>%  
+    dplyr::select(Estimate, StdError, CI_lower, CI_upper,z, PValue, Component)
+}
+
+# Extract, combine, and format
+model_summary <- summary(model)
+final_table <- bind_rows(
+  extract_component(model_summary$state, "Occupancy"),
+  extract_component(model_summary$det, "Detection")
+) %>%
+  mutate(
+    Estimate = round(Estimate, 3),
+    StdError = round(StdError, 3),
+    z = round(z, 3),
+    CI_lower = round(CI_lower, 3),
+    CI_upper = round(CI_upper, 3),
+    PValue = formatC(PValue, format = "e", digits = 2)
+  )
+final_table
+#save model table
+write.csv(final_table, "Models/Tables/model_performance_table.csv")

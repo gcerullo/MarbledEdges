@@ -97,7 +97,9 @@ analysisSurveys = analysisSites %>%
 
 #quick summary
 detections <- analysisSurveys %>% filter(detected == 1)
-detections %>% count() 
+detections %>% count() #761 detections 
+ analysisSites %>% select(id) %>% unique() %>% count()  #20149
+analysisSurveys %>% count() #29323 surveys
 
 
 # Calculate means and standard deviations for key variables in `analysisSites` and `analysisSurveys`

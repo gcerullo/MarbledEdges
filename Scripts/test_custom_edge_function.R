@@ -1,68 +1,54 @@
 #test my approach to calculating cells that share a boundary in NSEW direction with a different class value
 
+library(terra)
 
-# Create a small simulated raster for testing purposes showing closed canopy habitat (1) and open non-habitat (2)
-raster_data <- matrix(c(
-  0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,
-  0, 0, 0, 0, 0,0,0,1,0,0,0,0,1,
-  0, 0, 1, 0, 0,0,1,1,1,0,1,0,0,
-  0, 0, 0, 0, 0,1,1,1,0,0,0,0,0,
-  0, 0, 0, 0, 0,0,1,1,0,0,0,0,0
-), nrow = 5, byrow = TRUE)
+# Example: Simulated raster data
+set.seed(123)
+habitat <- rast(nrows = 10, ncols = 10, vals = sample(c(0, 1), 100, replace = TRUE))
+canopy <- rast(nrows = 10, ncols = 10, vals = sample(c(0, 1), 100, replace = TRUE, prob = c(0.8, 0.2)))
 
-# Convert the matrix to a SpatRaster
-raster <- rast(raster_data)
-plot(raster)
+# Create binary masks
+habitat_mask <- habitat == 1
+canopy_mask <- canopy == 1
 
-# Set up a global counter for progress tracking
-processed_cells <- 0
-total_cells <- ncell(raster)
+# Check adjacency: Identify cells with at least one open canopy neighbor
+adjacent_open <- focal(canopy_mask, w = matrix(c(0, 1, 0,
+                                                 1, 0, 1,
+                                                 0, 1, 0), nrow = 3), fun = max, fill = NA, na.rm = TRUE)
 
+# Exclude central cells that are open canopy
+habitat_only_mask <- habitat_mask & !canopy_mask
 
-boundary_raster <- focal(raster,  
-                         w = c(3, 3),  
-                         fun = function(x, ...) {
-                           
-                           # Update processed cell counter
-                           processed_cells <<- processed_cells + 1
-                           if (processed_cells %% 1000 == 0) {
-                             progress <- round((processed_cells / total_cells) * 100, 2)
-                             message("Processing: ", progress, "%")
-                           }
-                           
-                           center_value <- x[5]  # Explicitly extract center, even if NA
-                           
-                           # # Print for debugging
-                           # message("Focal window: ", paste(x, collapse = ", "),
-                           #         " | Center: ", center_value)
-                           
-                           if (is.na(center_value)) {
-                             return(NA)  # Keep NA if the focal cell itself is NA
-                           }
-                           
-                           # Extract NSEW neighbors
-                           neighbors <- x[c(2, 4, 6, 8)]  # N, S, E, W
-                           
-                           # Remove NA neighbors before comparison
-                           valid_neighbors <- neighbors[!is.na(neighbors)]
-                           
-                           # Check if any non-NA neighbor is different
-                           if (any(valid_neighbors != center_value)) {
-                             return(1)  # Boundary cell
-                           } else {
-                             return(0)  # Not a boundary
-                           }
-                         }, pad = TRUE)  # Keep padding enabled
+# Final result: Habitat cells adjacent to open canopy
+result <- habitat_only_mask & adjacent_open
+
+# Plot results
+par(mfrow = c(1, 3))
+plot(habitat, main = "Habitat Raster (1 = Habitat, 0 = Non-Habitat)", col = c("white", "green"))
+plot(canopy, main = "Canopy Raster (1 = Open, 0 = Closed)", col = c("white", "blue"))
+plot(result, main = "Result: Habitat Adjacent to Open Canopy", col = c("white", "red"))
+
+#-----------------------------
+#With real data:: 
+habitat_binary2 <- ifel(SDM2020 >= 45, 8, 4) #8 is habitat 
+open_canopy <- ifel(can_cov <= 4000, 5, 2) #5 is open canopy, 2 is closed canopy
+habitat_mask <- habitat_binary2 == 8
+canopy_mask <- open_canopy == 5
+
+plot(habitat_mask)
+plot(canopy_mask)
 
 
+# Check adjacency: Identify cells with at least one open canopy neighbor
+adjacent_open <- focal(canopy_mask, w = matrix(c(0, 1, 0,
+                                                 1, 0, 1,
+                                                 0, 1, 0), nrow = 3), fun = max, fill = NA, na.rm = TRUE)
 
-ncell(raster)
-# Plot the results
-par(mfrow = c(1, 2))  # Arrange plots side by side
-plot(raster, main = "Original Raster")
-plot(boundary_raster, main = "Boundary Raster with Updated Values")
+# Exclude central cells that are open canopy
+habitat_only_mask <- habitat_mask & !canopy_mask
 
+# Final result: Habitat cells adjacent to open canopy
+result <- habitat_only_mask & adjacent_open
+plot(result)
+writeRaster(result, "Rasters/test_edge_approach.tif",overwrite=TRUE)
 
-forest_with_edge <- raster*boundary_raster
-plot(forest_with_edge, main = "Forest cells
-     meet hard edge")

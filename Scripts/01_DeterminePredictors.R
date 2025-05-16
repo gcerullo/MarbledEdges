@@ -67,6 +67,13 @@ PC1_quantiles <-  PC1 %>%
   )
 
 
+# Dummy data frame for legend
+legend_lines <- data.frame(
+  type = c("Bad ocean year", "Good ocean year"),
+  y = c(PC1_quantiles$q10, PC1_quantiles$q90)
+)
+
+
 PC1_plot <- PC1 %>%
   ggplot(aes(x = Year, y = Value_scaled, group = 1)) +
   geom_line(linewidth = 1) +

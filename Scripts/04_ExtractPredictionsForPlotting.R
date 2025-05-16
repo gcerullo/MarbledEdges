@@ -10,6 +10,9 @@ source("scripts/02_OrganiseMurreletData.R")
 analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
 model <- readRDS("Models/final_model_5thMay2025.rds")
 
+coef(model)
+summary(model)
+
 # Step 1: Extract site-level covariates from the unmarked object
 # -------------------------------------------------------------
 # Step 1: Extract Mean Values for `scaleDoy` and `scaleDoy2`
@@ -18,7 +21,7 @@ doy_means <- analysisSurveys %>%
     mean_scaleDoy = mean(scaleDoy, na.rm = TRUE),
     mean_scaleDoy2 = mean(scaleDoy^2, na.rm = TRUE)
   )
-
+mean(analysisSites$coastDist)
 # Step 2: Define Prediction Grid
 edge_values <- seq(
   min(siteCovs(analysisData)$scaleEdgeDens2000, na.rm = TRUE),
