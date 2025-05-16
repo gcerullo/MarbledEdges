@@ -66,29 +66,29 @@ PC1_quantiles <-  PC1 %>%
     q95 = quantile(`Value_scaled`, 0.95) 
   )
 
-# Visualize data with quantiles
-PC1 %>%  
-  ggplot(aes(x = Year, y = Value_scaled, group = 1)) +  # Set group = 1 for all data points
-  geom_line(color = "#2c7fb8", linewidth = 1) +  # Line plot with custom color
-  geom_point(color = "#d95f0e", size = 3) +      # Points with custom color
-  geom_hline(yintercept = PC1_quantiles$q05, linetype = "dotted", color = "red", size = 0.8) +  # Q10
-  geom_hline(yintercept = PC1_quantiles$q10, linetype = "dotted", color = "pink", size = 0.8) +  # Q10
-  geom_hline(yintercept = PC1_quantiles$q20, linetype = "dotted", color = "orange", size = 0.8) +  # Q20
-  geom_hline(yintercept = PC1_quantiles$q50, linetype = "dotted", color = "green", size = 0.8) + # Median (Q50)
-  geom_hline(yintercept = PC1_quantiles$q80, linetype = "dotted", color = "lightblue", size = 0.8) +  # Q90
-  geom_hline(yintercept = PC1_quantiles$q90, linetype = "dotted", color = "blue", size = 0.8) +  # Q90
-  geom_hline(yintercept = PC1_quantiles$q95, linetype = "dotted", color = "black", size = 0.8) +  # Q90
+
+PC1_plot <- PC1 %>%
+  ggplot(aes(x = Year, y = Value_scaled, group = 1)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
   
-  theme_minimal(base_size = 14) +               # Clean minimal theme
-  labs(
-    title = "Scaled and inverted PCA1 Scores Over Time (high = good year)",
-    x = "Year",
-    y = "Value"
-  ) +
+  # Plot horizontal lines from legend_lines with mapped colors
+  geom_hline(data = legend_lines, aes(yintercept = y, color = type), linetype = "dotted", size = 2) +
+  
+  labs(y = "Ocean condition (scaled PC1)", color = NULL) +
+  
+  scale_color_manual(values = c("Good ocean year" = "#2c7fb8", "Bad ocean year" = "#d95f0e")) +
+  
+  theme_minimal(base_size = 18) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold"),
-    axis.text = element_text(size = 12),
-    axis.title = element_text(size = 14)
+    legend.position = "top",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 14),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    panel.grid.major = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, size = 1)
   )
 
 #Get an elevation DEM in the correct projection
@@ -105,4 +105,16 @@ PC1 %>%
 ##########################################################################
 #save outputs #### 
 
-# write.csv(PC1, "Outputs/PC1_scaled_inverted.csv")
+#write.csv(PC1, "Outputs/PC1_scaled_inverted.csv")
+
+ggsave(
+  filename = "Figures/PC1_good_bad_ocean_10th_90th_percentile.png",               # File path and name
+  plot = PC1_plot,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+

@@ -201,5 +201,91 @@ analysisData = unmarkedFrameOccu(y = y, siteCovs = analysisSites, obsCovs = surv
 elevational_range_df <- read.csv("Inputs/pointsInRoiAndSamplingWindow_withDEM.csv")
 hist(elevational_range_df$dem30m) 
 (max)
+
+#plot covariates of model 
+analysisSurveys
+
+detected_sites <- analysisSurveys %>% dplyr::select(id, detected)
+
+allsites <- analysisSites %>% 
+dplyr::select(coastDist,habAmountDich_100,habAmountDich_2000,edgeRook_100_40,edgeRook_2000_40) %>%  
+  rename(
+    `Distance to coast`     = coastDist,
+    `Hab amount 100 m`      = habAmountDich_100,
+    `Hab amount 2000 m`     = habAmountDich_2000,
+    `Edge amount 100 m`     = edgeRook_100_40,
+    `Edge amount 2000 m`    = edgeRook_2000_40
+  ) %>% 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>% 
+  ggplot( aes(x = Value)) +
+  geom_histogram(fill = "#999999", color = "white", alpha = 0.7) +
+  facet_wrap(~ Variable, scales = "free") +
+  theme_minimal(base_size = 18) +  # Minimal theme with larger base font size
+  theme(
+    legend.position = "top",  # Position the legend at the top
+    legend.title = element_blank(),  # Increase legend title size for clarity
+    legend.text = element_text(size = 14),  # Increase legend text size for better readability
+    axis.title = element_text(size = 16),  # Increase axis title font size
+    axis.text = element_text(size = 14),  # Increase axis label font size
+    panel.grid.major = element_blank(),  # No major gridlines
+    panel.border = element_rect(color = "black", fill = NA, size = 1)  # Add a thin border around the plot
+  )
+
+detectedsites <- analysisSites %>% 
+  
+
+#if we only want to consider sites where there was a detection
+left_join(detected_sites, by = "id") %>%  
+  filter(detected == 1) %>% 
+dplyr::select(coastDist,habAmountDich_100,habAmountDich_2000,edgeRook_100_40,edgeRook_2000_40) %>%  
+  rename(
+    `Distance to coast`     = coastDist,
+    `Hab amount 100 m`      = habAmountDich_100,
+    `Hab amount 2000 m`     = habAmountDich_2000,
+    `Edge amount 100 m`     = edgeRook_100_40,
+    `Edge amount 2000 m`    = edgeRook_2000_40
+  ) %>% 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>% 
+  ggplot( aes(x = Value)) +
+  geom_histogram(fill = "#999999", color = "white", alpha = 0.7) +
+  facet_wrap(~ Variable, scales = "free") +
+  theme_minimal(base_size = 18) +  # Minimal theme with larger base font size
+  theme(
+    legend.position = "top",  # Position the legend at the top
+    legend.title = element_blank(),  # Increase legend title size for clarity
+    legend.text = element_text(size = 14),  # Increase legend text size for better readability
+    axis.title = element_text(size = 16),  # Increase axis title font size
+    axis.text = element_text(size = 14),  # Increase axis label font size
+    panel.grid.major = element_blank(),  # No major gridlines
+    panel.border = element_rect(color = "black", fill = NA, size = 1)  # Add a thin border around the plot
+  )
+
+
+
 #save  unmarked dataframe ####
 saveRDS(analysisData, file = "Outputs/analysisDataUnmarked.rds")
+
+#Export clearance survey sites
+ggsave(
+  filename = "Figures/clearance_survey_all_site_covars.png",               # File path and name
+  plot = allsites ,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+
+
+ggsave(
+  filename = "Figures/clearance_survey_mamu_detected_site_covars.png",               # File path and name
+  plot = detectedsites,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "png",                       # Output format
+  bg = "white"                          # Set background to white
+)
+

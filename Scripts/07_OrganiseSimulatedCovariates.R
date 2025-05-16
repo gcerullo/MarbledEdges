@@ -1,4 +1,4 @@
-# Organise Simulated Landscape Covariates
+# Predict occupancy for hypoethetical landscapes with different configurations 
 
 # Load necessary libraries
 library(tidyverse)
@@ -158,13 +158,22 @@ for (target in production_targets) {
     
   
   
-  # Save occupancy boxplot
-  ggsave(paste0("Figures/ForestPointOccupancyInSimulatedLandscapes_P", target, ".png"),
-         plot = p_plot, 
-         width = 10,                            # Width in inches (publication size)
-         height = 8,                           # Height in inches (publication size)
-         dpi = 300,  
-         bg = "white")  # White background)
+  # # Save occupancy boxplot
+  # ggsave(paste0("Figures/ForestPointOccupancyInSimulatedLandscapes_P", target, ".png"),
+  #        plot = p_plot, 
+  #        width = 10,                            # Width in inches (publication size)
+  #        height = 8,                           # Height in inches (publication size)
+  #        dpi = 300,  
+  #        bg = "white")  # White background)
+  # 
+  # Save occupancy boxplot as PDF
+  ggsave(
+    filename = paste0("Figures/ForestPointOccupancyInSimulatedLandscapes_P", target, ".pdf"),
+    plot = p_plot, 
+    width = 10,           # Width in inches
+    height = 8,           # Height in inches
+    bg = "white"          # Optional: white background (default for PDF is transparent)
+  )
   
   # Export terra raster plots
   file_names <- basename(sources(landscapes))
@@ -185,12 +194,19 @@ for (target in production_targets) {
   # Define number of rows and columns
   num_cols <- 4
   num_rows <- 4
+  #PNG
+  # # Define output file path
+  # output_path <- file.path("Figures", paste0("All_Landscapes_", target, ".png"))
+  # 
+  # # Open PNG graphics device
+  # png(output_path, width = 2500, height = 1000, res = 200)
   
   # Define output file path
-  output_path <- file.path("Figures", paste0("All_Landscapes_", target, ".png"))
+  output_path <- file.path("Figures", paste0("All_Landscapes_", target, ".pdf"))
   
-  # Open PNG graphics device
-  png(output_path, width = 2500, height = 1000, res = 200)
+  # Open PDF graphics device
+  pdf(output_path, width = 12.5, height = 5)  # widths in inches
+  
   
   # Set up multi-panel layout
   par(mfrow = c(num_rows, num_cols), 
