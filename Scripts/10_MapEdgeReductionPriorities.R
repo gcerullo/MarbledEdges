@@ -5,7 +5,7 @@ library(terra)
 
 #read in params ####
 results_all_edges <- readRDS("Outputs/ReduceLandscapeAndLocalEdges.rds")
-
+percentage_change_se <- readRDS("Outputs/percentage_change_se_05edge_reduction.rds")
 final2020 <- readRDS("Outputs/PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8
   as.data.frame() #%>%  
 

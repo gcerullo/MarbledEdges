@@ -14,6 +14,7 @@ library(skimr)
 library(summarytools)
 library(ggh4x) 
 source("scripts/02_OrganiseMurreletData.R")
+source("Functions/se_diff_occu.R")#custom function for calculating % change and SE on logis scale
 
 #----------------------------------------------------------------
 # read in inputs #####
@@ -25,7 +26,7 @@ covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%
     TRUE ~ PC1_t1  # keeps the original value of PC1_t1 when OceanYear is not "Bad Ocean Years"
   ))
 model <- readRDS("Models/final_model_5thMay2025.rds")
-vcov_mat <- unmarked::vcov(model, type = "state")
+
 final2020 <- readRDS("Outputs/PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8
   as.data.frame() #%>%  
 
@@ -286,42 +287,180 @@ results_landscape_edges_processed <- results_landscape_edges %>%  prep_and_predi
 saveRDS(results_landscape_edges_processed, "Outputs/ReduceLandscapeEdges.rds" )
 
 #===========================================================
-# #calculate uncertainty around percentage change in edge
+# #calculate uncertainty around percentage change in edge amount
+# NOTE - we have to do this on the logis scale! 
 # Pseudo-code from Dusty
-# 
-# # covariance matrix of coefficient estimates
-# V_beta <- vcov(model)
-# 
+
+final2020 <- readRDS("Outputs/PNW_2020_extracted_covars.rds")    #read in starting occupancy for 2020 from scrippt 8
+  
+ 
+
 # # construct model matrix for the predicted occupancy
-# # at the focal cell, with multiple values of edge
-# X <- model.matrix(~ formula, data = newdata)
-# 
-# # get coefficient estimates
-# beta_hat <- coef(model)
-# 
-# # create predictions on logit scale
-# preds_logit <- X %*% beta_hat
-# 
-# # get covariance of predictions
-# V_preds <- X %*% V_beta %*% t(X)
-# 
-# # transform predictions back to probability scale
-# # and take the difference
-# preds <- plogis(preds_logit)
-# diff <- preds[1] - preds[2]
-# 
-# # now use the Delta method to get standard error of 
-# # the difference
-# se <- msm::deltamethod(
-#   ~ exp(x1)/(1 + exp(x1)) - exp(x2)/(1 + exp(x2)),
-#   mean = preds_logit,
-#   cov = V_preds
-# )
+predict_df <- lapply(decrease_edge, function(decrease) {
+  final2020 %>%
+    mutate(
+      edgeRook_100_40 = edgeRook_100_40 * (1 - decrease),
+      edgeRook_2000_40 = edgeRook_2000_40 * (1 - decrease)
+    ) %>%
+    mutate(decrease_factor = decrease)  # Add a column to track the reduction factor
+ 
+    })
+predict_df <- bind_rows(predict_df)
+predict_df <- predict_df %>% 
+  filter(cancov_2020 > -1) %>% #remove non-forest habitat points
+  filter( distance_to_coastline < 60000) %>% #remove points v far from coast 
+  filter(dem30m < 600) %>%  #remove points above a given altitude
+   mutate(
+    scaleHabAmount100 = (habAmountDich_100  - meansAndSds$meanHabAmountDich100) /meansAndSds$sdHabAmountDich100,
+    scaleHabAmount2000 = (habAmountDich_2000 - meansAndSds$meanHabAmountDich2000) /meansAndSds$sdHabAmountDich2000,
+    scaleEdgeDens100 =  (edgeRook_100_40 - meansAndSds$meanEdgeDens100) /meansAndSds$sdEdgeRook100, 
+    scaleEdgeDens2000 = (edgeRook_2000_40 - meansAndSds$meanEdgeDens2000)/meansAndSds$sdEdgeRook2000,
+    scaleCoastDist = (distance_to_coastline - meansAndSds$meanCoastDist) /meansAndSds$sdCoastDist
+  ) %>%  
+  dplyr::select(
+    point_id,
+    scaleHabAmount100,
+    scaleHabAmount2000,
+    scaleEdgeDens100,
+    scaleEdgeDens2000,
+    scaleCoastDist,
+    decrease_factor,
+    cancov_2020
+  ) %>%
+  cross_join(covariates) %>%  
+  mutate(ownership = sample(c("or", "wa"), size = n(), replace = TRUE)) %>% 
+  mutate(scaleCanopy100 = meansAndSds$meanCanopy100) %>%  
+  mutate(scaleConDens100 = meansAndSds$meanCanopy100) %>%  
+  mutate(ownership = as.factor(ownership))
+
+
+# custom se_diff_occ params; only keep for a 50% decrease in edge 
+#' @param newdat A data frame containing the covariate values for prediction. Must contain the two rows we want to contrast.
+#' @param fit A fitted model object of class `unmarkedFitOccu` (from the `unmarked` package).
+#' @param type A character string indicating which component to analyze: `"state"` for occupancy or `"det"` for detection. Defaults to `"state"`.
+#' @param order A numeric vector of length 2 specifying the row indices in `newdat` to compare. 
+predict_df50 <- predict_df %>%  filter(decrease_factor %in% c(0,0.5))
+
+predict_df50_good <- predict_df50 %>% filter(OceanYear == "Good Ocean Years") 
+predict_df50_bad <- predict_df50 %>% filter(OceanYear == "Bad Ocean Years") 
+
+# Get unique point IDs
+point_ids <- unique(predict_df50_good$point_id)
+
+# Initialize results list
+results <- vector("list", length(point_ids))
+
+# Set up a progress bar
+library(progress)
+pb <- progress_bar$new(
+  format = "  Processing [:bar] :percent in :elapsed, ETA: :eta",
+  total = length(point_ids),
+  clear = FALSE,
+  width = 60
+)
+
+
+#select one 
+dataset <- predict_df50_good
+dataset <- predict_df50_bad
+
+# Loop through each point_id
+for (i in seq_along(point_ids)) {
+  # Filter data for the current point_id
+  subset_data <- dataset %>%
+    filter(point_id == point_ids[i] & decrease_factor %in% c(0, 0.5)) %>%
+    arrange(decrease_factor)
+  
+  # Apply the function and store results
+  if (nrow(subset_data) == 2) { # Ensure there are exactly two rows
+    results[[i]] <- data.frame(
+      point_id = point_ids[i],
+      estim = se_diff_occ(
+        newdat = subset_data,
+        fit = model,
+        type = "state",
+        order = c(2, 1)
+      )$estim,
+      se = se_diff_occ(
+        newdat = subset_data,
+        fit = model,
+        type = "state",
+        order = c(2, 1)
+      )$se
+    )
+  } else {
+    # Handle cases where the group doesn't have the expected data
+    results[[i]] <- data.frame(
+      point_id = point_ids[i],
+      estim = NA,
+      se = NA
+    )
+  }
+  
+  # Update progress bar
+  pb$tick()
+}
+
+# Combine results into a single data frame
+results_good <- bind_rows(results)
+saveRDS(results_good, "Outputs/good_years_50pcEdgeReduction _percentchange_SE.rds")
+
+results_bad <- bind_rows(results)
+saveRDS(results_good, "Outputs/bad_years_50pcEdgeReduction _percentchange_SE.rds")
+
+#combine results 
+results_good <- readRDS("Outputs/good_years_50pcEdgeReduction _percentchange_SE.rds")
+results_bad <- readRDS("Outputs/bad_years_50pcEdgeReduction _percentchange_SE.rds")
+# View the results
+head(results_df)
+
+ggplot(results_good, aes(x = estim)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "black") +
+  xlim(-200, 200) +
+  theme_classic() +
+  labs(
+    x = "% change from baseline",
+    y = "Frequency",
+    title = "Histogram of Estimates in Good Years")
+declines_good <- results_good %>%  filter(estim < 0 ) %>%  
+  left_join(final2020)
+declines_good %>% group_by(ownership) %>% count()
+ggplot(results_bad, aes(x = estim)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "black") +
+  xlim(-200, 200) +
+  theme_classic() +
+  labs(
+    x = "% change from baseline",
+    y = "Frequency",
+    title = "Histogram of Estimates in Bad Years")
+
+
+prev_pred_good <- results_all_edges %>%  filter(OceanYear == "Good Ocean Years") %>% 
+  filter(decrease_factor %in% c(0,0.5)) %>%  right_join(results_good)
+declines <- prev_pred_good %>%  filter(estim < 0 )
+increase <- prev_pred_good %>%  filter(estim > 0 )
+hist(declines$distance_to_coastline)
+hist(increase$distance_to_coastline)
+hist(declines$scaleHabAmount2000)
+hist(increase$scaleHabAmount2000)
+
+declines_federal <- declines %>% filter(ownership == "Federal")
+hist(declines_federal$distance_to_coastline)
+plot(declines)
+
+#RUN CHECKS - NOT  HAPPY WITH THIs!!!!!!!!!!!!!!!!!!!!
+results_bad <- results_bad %>%  mutate(OceanYear = "Bad Ocean Years") 
+results_good <- results_good %>%  mutate(OceanYear = "Good Ocean Years") 
+percentage_change_se <- rbind(results_bad, results_good)
+percentage_change_se <- percentage_change_se %>%  left_join(final2020)
+
+saveRDS(percentage_change_se, "Outputs/percentage_change_se_05edge_reduction.rds")
+
 #=============================================================
 #CAN START HERE ######
 results_all_edges <- readRDS("Outputs/ReduceLandscapeAndLocalEdges.rds")
 results_landscape <- readRDS("Outputs/ReduceLandscapeEdges.rds")
-
+hist(results_all_edges$Occupancy)
 
 #scale back to original values
 results_all_edges <- results_all_edges %>%

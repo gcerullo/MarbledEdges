@@ -88,7 +88,7 @@ analysisSites = siteData %>%
 
 #join site data with murrelet surveys and PC1 
 analysisSurveys = analysisSites %>% 
-  dplyr::select(id, year) %>% 
+  dplyr::select(id, year,utmE,utmN) %>% 
   left_join(surveys, by = c('id', 'year')) %>% 
   #only keep data for which we have data on PC1 value
   filter(year >= earliest_PC1_year) %>% 
@@ -112,6 +112,7 @@ meansAndSds <- data.frame(
   meanEdgeDens2000 = mean(analysisSites$edgeRook_2000_40, na.rm = TRUE),
   meanEdgeDens100 = mean(analysisSites$edgeRook_100_40, na.rm = TRUE),
   meanDoy = mean(analysisSurveys$doy, na.rm = TRUE),
+  meanConDens100 = mean(analysisSites$conDens100, na.rm = TRUE),
   sdCanopy100 = sd(analysisSites$canopy100, na.rm = TRUE),
   sdConDens100 = sd(analysisSites$conDens100, na.rm = TRUE),
   sdCoastDist = sd(analysisSites$coastDist, na.rm = TRUE),
