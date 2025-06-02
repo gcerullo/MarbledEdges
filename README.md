@@ -175,7 +175,7 @@ Figures showing how occupancy is distributed by actor
 
 
 #-------------------------
-#10_productivity_by_ownership
+#11_productivity_by_ownership
 #-------------------------
 #Script Description 
 Shows how potential timber yields vary with increasing coastal distance  
