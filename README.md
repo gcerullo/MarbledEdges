@@ -84,6 +84,7 @@ Fig1
 #-------------------------
 #05_BuildLandscapes
 #-------------------------
+
 #Script Description 
 Builds hypothetical 1Mha simulated logging landscapes (outputted as rasters) 
 matched by timber production target but varying in fragmentation per se
@@ -138,9 +139,9 @@ vect("Rasters/land_ownership/All_merge.shx") #landownership shapefile
 
 #GNN raster data must be requested at: https://lemmadownload.forestry.oregonstate.edu/
 #canopy cover of all trees
-can_cov_all_trees <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_2020.tif")
+Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_2020.tif
 #canopy cover of conifers
-can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif")
+Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif
 #SDM of murrelets for year 2020
 Rasters/MAMU_SDMs/MAMU_maxent_cloglog_2020_20220208.tif
 
