@@ -37,7 +37,6 @@ pt_elevation <- read.csv("Outputs/elevation_at_each_point.csv")
 #read in means and SDs of covariates from original model to enable coorrect scalings
 meansAndSds
 
-
 #remind ourselves of what model has seen unscaled
 detected_sites <- analysisSurveys %>% dplyr::select(id, detected)
 analysisSites %>% 
@@ -353,17 +352,6 @@ predict_df50_bad <- predict_df50 %>% filter(OceanYear == "Bad Ocean Years")
 dataset <- predict_df50_good
 dataset <- predict_df50_bad
 
-
-# # Randomly select 100 unique point_ids (to test running for a smaller number of points)
-# selected_ids <- dataset %>%
-#   distinct(point_id) %>%
-#   slice_sample(n = 1000) %>%
-#   pull(point_id)
-# #Filter the dataset using these selected point_ids
-# run_dataset <- dataset %>%
-#   filter(point_id %in% selected_ids) %>%
-#   arrange(point_id, decrease_factor)
-# # #write.csv(run_dataset, "10_points_dusty.csv")
 run_dataset <- dataset
 
 # Get unique point IDs
@@ -377,7 +365,7 @@ for (point_id in unique(run_dataset$point_id)) {
   # Filter the dataset for the current point ID
   current_data <- run_dataset %>% filter(point_id == !!point_id)
   
-  # Apply the se_diff_occ function
+  # Apply the se_log_odds_occ function
   estim <- se_odds_ratio_occ(
     newdat = current_data,
     fit = model,
@@ -431,7 +419,8 @@ log_odds_se <- log_odds_se %>%  left_join(final2020)
 #saveRDS(log_odds_se, "Outputs/log_odds_se_05edge_reduction.rds")
 
 #=============================================================
-#CAN START HERE ######
+#Plot the distribution of edge and habitat amount for different ownership classifications
+
 results_all_edges <- readRDS("Outputs/ReduceLandscapeAndLocalEdges.rds")
 results_landscape <- readRDS("Outputs/ReduceLandscapeEdges.rds")
 hist(results_all_edges$Occupancy)
@@ -582,7 +571,6 @@ ggsave(
 ############|#
 ############|
 ######
-
 
 #get quantiles of elevation  
 Allelev = as.numeric(quantile(elevational_range_df$dem30m, 1, na.rm = TRUE))
