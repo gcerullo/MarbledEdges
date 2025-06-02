@@ -6,7 +6,7 @@ library(tidyverse)
 ownership <- vect("Rasters/land_ownership/All_merge.shx")
 final2020 <- readRDS("Outputs/PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8
   as.data.frame()
-point_id <- final2020 %>% select(point_id, x,y)
+point_id <- final2020 %>% dplyr::select(point_id, x,y)
 long_lat <- vect(point_id, geom = c("x", "y"), crs = "EPSG:5070") # Assuming coordinates are in WGS84
 #read in the forest productivity 
 #organise raster data ####
@@ -148,7 +148,7 @@ lm <- ggplot(filtered_data, aes(x = distance_to_coastline/1000, y = inverted_pro
   ))  +
   labs(
     x = "Distance to Coastline (km)",
-    y = expression("Productivity (ft"^3*"/acre/year)"),  # Customize y-axis label
+    y = expression("Potential productivity (ft"^3*"/acre/year)"),  # Customize y-axis label
     color = "Ownership" )+ 
   facet_wrap(~ ownership, ncol = 3) +
   scale_y_continuous(
@@ -216,7 +216,7 @@ meanSD <- ggplot(data_summary, aes(x = distance_to_coastline, y = mean_productiv
   )) +
   labs(
     x = "Distance to Coastline (km)",
-    y = expression("Productivity (ft"^3*"/acre/year)"),  # Customize y-axis label
+    y = expression("Potential productivity (ft"^3*"/acre/year)"),  # Customize y-axis label
     color = "Ownership" )+ 
   facet_wrap(~ ownership, ncol = 3) +
   scale_y_continuous(

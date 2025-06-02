@@ -365,10 +365,10 @@ dataset <- predict_df50_bad
 #   arrange(point_id, decrease_factor)
 # # #write.csv(run_dataset, "10_points_dusty.csv")
 run_dataset <- dataset
+
 # Get unique point IDs
 point_ids <- unique(run_dataset$point_id)
 results <- vector("list", length(point_ids))
-
 
 results<- list()
 
@@ -395,7 +395,7 @@ final_results_good <- final_results %>% left_join(results_all_edges_good)
 #saveRDS(final_results_good, "Outputs/good_years_50pcEdgeReduction_logOdds_SE.rds")
 
 final_results_bad <- bind_rows(results, .id = "point_id")
-final_results_bad <- final_results %>% left_join(results_all_edges_bad)
+final_results_bad <- final_results_bad %>% left_join(results_all_edges_bad)
 #saveRDS(final_results_bad, "Outputs/bad_years_50pcEdgeReduction_logOdds_SE.rds")
 
 
