@@ -8,7 +8,7 @@ library(terra)
 #read in inputs 
 
 #ocean conditions 
-#Raw data on the ocean conditions based on 16 PCAd variables; downloaded from: 
+#Raw data on the ocean conditions based on 16 PCA variables; downloaded from: 
 #https://www.fisheries.noaa.gov/west-coast/science-data/ocean-conditions-indicators-trends
 ocean_cond <- read.csv("Inputs/2023-Stoplight-RAWDATA.csv") %>%  
   #remove additional data not used in PCA construction
@@ -19,7 +19,6 @@ ocean_cond <- read.csv("Inputs/2023-Stoplight-RAWDATA.csv") %>%
 #OCEAN CONDITIONS 
 #--------------------------------------------------------------------
 
-#forest_age information 
 
 #Clean data #### 
 
@@ -72,7 +71,6 @@ legend_lines <- data.frame(
   type = c("Bad ocean year", "Good ocean year"),
   y = c(PC1_quantiles$q10, PC1_quantiles$q90)
 )
-
 
 PC1_plot <- PC1 %>%
   ggplot(aes(x = Year, y = Value_scaled, group = 1)) +

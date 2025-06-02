@@ -13,16 +13,7 @@ library(summarytools)
 #rm(pointsInRoiAndSamplingWindow)
 #rm(analysisData)
 #==================================
-#Information on Murrelet survey sites: (Valente 2022)
-#Most surveys were conducted around proposed timber harvest sites with 1 survey station per 8–10 ha.
-#Site-level sampling effort varied with number of stations, but station size
-#(200-m radius circle) was standardized (Evans Mack et al., 2003)
-# so we conducted all analyses at the station level. 
-#Stations were surveyed iteratively until murrelet breeding activity was recorded at the site 
-#or the minimum number of required surveys was conducted#
-#(5–9 surveys in each of 2 years) (Evans Mack et al., 2003).
-
-#now for each point in 2020 across PNW we extract the following: 
+#for each point in 2020 across PNW we extract the following: 
 #dist coast
 #hab amount 100 and 2000 (from murrelet SDM)
 #edge density 100 and 2000
@@ -525,171 +516,171 @@ plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 
 #
 
-#---------------------------------------------------------------------------
-#quickly summarise data #### (can read in final2020 at bottom)
-#---------------------------------------------------------------------------
-#what was the elevational range of murrelets in dataset from pre-clearance surveys? 
-elevational_range_df <- read.csv("Inputs/pointsInRoiAndSamplingWindow_withDEM.csv")
-hist(elevational_range_df$dem30m) 
-max(elevational_range_df$dem30m, na.rm = TRUE) #no surveys above 1636.42 metres! 
-q95elev = as.numeric(quantile(elevational_range_df$dem30m, 0.95, na.rm = TRUE))
-q90elev = as.numeric(quantile(elevational_range_df$dem30m, 0.90, na.rm = TRUE))
-q80elev = as.numeric(quantile(elevational_range_df$dem30m, 0.80, na.rm = TRUE))
-
-quickplotSummaryMedianSD <- function(x, plot_title = "Median and Standard Deviation for Each Variable") {
-  
-  quickplotSummary <- x %>%
-    filter(!ownership == "Unknown") %>% 
-    filter(cancov_2020 >0 ) %>%  
-    filter(distance_to_coastline > 100000) %>%  
-    filter(dem30m < q90elev) %>% 
-    
-    
-    group_by(ownership) %>%
-    summarise(
-      across(
-        c(habAmountDich_100, habAmountDich_2000, edgeRook_100_40, edgeRook_2000_40, point_leve_habitat),
-        list(
-          median = median,
-          sd = sd,
-          n = ~n()
-        ),
-        .names = "{.col}_{.fn}"
-      )
-    ) %>%
-    pivot_longer(
-      cols = -ownership,
-      names_to = c("variable", "stat"),
-      names_pattern = "(.*)_(median|sd|n)",
-      values_to = "value"
-    ) %>%
-    pivot_wider(
-      names_from = stat,
-      values_from = value
-    ) %>%
-    mutate(
-      lower_ci = median - 1.96 * (sd / sqrt(n)),
-      upper_ci = median + 1.96 * (sd / sqrt(n))
-    )
-  
-  # plot summaries
-  ggplot(quickplotSummary, aes(x = ownership, y = median, color = ownership)) +
-    geom_point(size = 3) +
-    geom_errorbar(aes(ymin = median - lower_ci, ymax = median + upper_ci), width = 0.2) +
-    facet_wrap(~ variable, scales = "free_y") +
-    labs(
-      title = plot_title,
-      x = "Ownership",
-      y = "Median ± SD"
-    ) +
-    theme_minimal() +
-    theme(
-      axis.text.x = element_text(angle = 45, hjust = 1),
-      legend.position = "none"
-    )
-}
-
-allpoints_median <- quickplotSummaryMedianSD(final2020, plot_title = "All Points: Median and SD")
-
-allforest_median <- quickplotSummaryMedianSD(
-     final2020 %>% filter(cancov_2020 > 0),
-
-    plot_title = "Forest Points : Median and SD")
-
-allhabpoints_median <- quickplotSummaryMedianSD(
-  final2020 %>% filter(point_leve_habitat > 45),
-  plot_title = "Habitat > 45: Median and SD"
-)
-allhab100kmpoints_median <- quickplotSummaryMedianSD(
-  final2020 %>% filter(point_leve_habitat > 45, distance_to_coastline < 100000),
-  plot_title = "Habitat > 45 & <100km from Coast: Median and SD"
-)
-
-
-#With 95% CI 
-quickplotSummaryMean95 <- function(x, plot_title = "Mean and 95% CI for Each Variable") {
-  
-  quickplotSummary <- x %>%
-    filter(!ownership == "Unknown") %>% 
-    filter(cancov_2020 >0 ) %>%  
-    filter(distance_to_coastline > 100000) %>%  
-    filter(dem30m < q90elev) %>% 
-   
-    
-    group_by(ownership) %>%
-    summarise(
-      across(
-        c(habAmountDich_100, habAmountDich_2000, edgeRook_100_40, edgeRook_2000_40, point_leve_habitat),
-        list(
-          mean = mean,
-          sd = sd,
-          n = ~n()
-        ),
-        .names = "{.col}_{.fn}"
-      )
-    ) %>%
-    pivot_longer(
-      cols = -ownership,
-      names_to = c("variable", "stat"),
-      names_pattern = "(.*)_(mean|sd|n)",
-      values_to = "value"
-    ) %>%
-    pivot_wider(
-      names_from = stat,
-      values_from = value
-    ) %>%
-    mutate(
-      lower_ci = mean - 1.96 * (sd / sqrt(n)),
-      upper_ci = mean + 1.96 * (sd / sqrt(n))
-    )
-  
-  # plot summaries with 95% CI
-  ggplot(quickplotSummary, aes(x = ownership, y = mean, color = ownership)) +
-    geom_point(size = 3) +
-    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2) +
-    facet_wrap(~ variable, scales = "free_y") +
-    labs(
-      title = plot_title,
-      x = "Ownership",
-      y = "Mean ± 95% CI"
-    ) +
-    theme_minimal() +
-    theme(
-      axis.text.x = element_text(angle = 45, hjust = 1),
-      legend.position = "none"
-    )
-}
-
-allpoints_mean <- quickplotSummaryMean95(final2020, plot_title = "All Points: Mean and 95% CI")
-
-allhabpoints_mean <- quickplotSummaryMean95(
-  final2020, #%>% filter(point_leve_habitat > 45),
-  plot_title = "AllPoints: Mean and 95% CI"
-)
-
-allforest_meanDistanceOnly <- quickplotSummaryMean95(
-  final2020 %>% filter( distance_to_coastline < 100000),
-  #final2020 %>% filter(cancov_2020 > 4000),
-  plot_title = "AllPoints <84km : Mean and 95% CI")
-
-allforest_meanDistanceOnlyCanCov <- quickplotSummaryMean95(
-  final2020 %>% filter( distance_to_coastline < 84000, cancov_2020 >0),
-  #final2020 %>% filter(cancov_2020 > 4000),
-  plot_title = "Forest Points (>0% canopy) <84km : Mean and 95% CI")
-
-cowplot::plot_grid(allforest_meanDistanceOnly,allforest_meanDistanceOnlyCanCov)
-
-allhab100kmpoints_mean <- quickplotSummaryMean95(
-  final2020 %>% filter(point_leve_habitat > 45, distance_to_coastline < 100000),
-  plot_title = "Habitat > 45 & <100km from Coast: Mean and 95% CI"
-)
-
-allpoints_mean
-allhabpoints_mean
-allforest_mean
-allhab100kmpoints_mean
-  #  filter(distance_to_coastline < 100000) %>% 
-  #filter(point_leve_habitat > 0) %>%
+# #---------------------------------------------------------------------------
+# #quickly summarise data #### (can read in final2020 at bottom)
+# #---------------------------------------------------------------------------
+# #what was the elevational range of murrelets in dataset from pre-clearance surveys? 
+# elevational_range_df <- read.csv("Inputs/pointsInRoiAndSamplingWindow_withDEM.csv")
+# hist(elevational_range_df$dem30m) 
+# max(elevational_range_df$dem30m, na.rm = TRUE) #no surveys above 1636.42 metres! 
+# q95elev = as.numeric(quantile(elevational_range_df$dem30m, 0.95, na.rm = TRUE))
+# q90elev = as.numeric(quantile(elevational_range_df$dem30m, 0.90, na.rm = TRUE))
+# q80elev = as.numeric(quantile(elevational_range_df$dem30m, 0.80, na.rm = TRUE))
+# 
+# quickplotSummaryMedianSD <- function(x, plot_title = "Median and Standard Deviation for Each Variable") {
+#   
+#   quickplotSummary <- x %>%
+#     filter(!ownership == "Unknown") %>% 
+#     filter(cancov_2020 >0 ) %>%  
+#     filter(distance_to_coastline > 100000) %>%  
+#     filter(dem30m < q90elev) %>% 
+#     
+#     
+#     group_by(ownership) %>%
+#     summarise(
+#       across(
+#         c(habAmountDich_100, habAmountDich_2000, edgeRook_100_40, edgeRook_2000_40, point_leve_habitat),
+#         list(
+#           median = median,
+#           sd = sd,
+#           n = ~n()
+#         ),
+#         .names = "{.col}_{.fn}"
+#       )
+#     ) %>%
+#     pivot_longer(
+#       cols = -ownership,
+#       names_to = c("variable", "stat"),
+#       names_pattern = "(.*)_(median|sd|n)",
+#       values_to = "value"
+#     ) %>%
+#     pivot_wider(
+#       names_from = stat,
+#       values_from = value
+#     ) %>%
+#     mutate(
+#       lower_ci = median - 1.96 * (sd / sqrt(n)),
+#       upper_ci = median + 1.96 * (sd / sqrt(n))
+#     )
+#   
+#   # plot summaries
+#   ggplot(quickplotSummary, aes(x = ownership, y = median, color = ownership)) +
+#     geom_point(size = 3) +
+#     geom_errorbar(aes(ymin = median - lower_ci, ymax = median + upper_ci), width = 0.2) +
+#     facet_wrap(~ variable, scales = "free_y") +
+#     labs(
+#       title = plot_title,
+#       x = "Ownership",
+#       y = "Median ± SD"
+#     ) +
+#     theme_minimal() +
+#     theme(
+#       axis.text.x = element_text(angle = 45, hjust = 1),
+#       legend.position = "none"
+#     )
+# }
+# 
+# allpoints_median <- quickplotSummaryMedianSD(final2020, plot_title = "All Points: Median and SD")
+# 
+# allforest_median <- quickplotSummaryMedianSD(
+#      final2020 %>% filter(cancov_2020 > 0),
+# 
+#     plot_title = "Forest Points : Median and SD")
+# 
+# allhabpoints_median <- quickplotSummaryMedianSD(
+#   final2020 %>% filter(point_leve_habitat > 45),
+#   plot_title = "Habitat > 45: Median and SD"
+# )
+# allhab100kmpoints_median <- quickplotSummaryMedianSD(
+#   final2020 %>% filter(point_leve_habitat > 45, distance_to_coastline < 100000),
+#   plot_title = "Habitat > 45 & <100km from Coast: Median and SD"
+# )
+# 
+# 
+# #With 95% CI 
+# quickplotSummaryMean95 <- function(x, plot_title = "Mean and 95% CI for Each Variable") {
+#   
+#   quickplotSummary <- x %>%
+#     filter(!ownership == "Unknown") %>% 
+#     filter(cancov_2020 >0 ) %>%  
+#     filter(distance_to_coastline > 100000) %>%  
+#     filter(dem30m < q90elev) %>% 
+#    
+#     
+#     group_by(ownership) %>%
+#     summarise(
+#       across(
+#         c(habAmountDich_100, habAmountDich_2000, edgeRook_100_40, edgeRook_2000_40, point_leve_habitat),
+#         list(
+#           mean = mean,
+#           sd = sd,
+#           n = ~n()
+#         ),
+#         .names = "{.col}_{.fn}"
+#       )
+#     ) %>%
+#     pivot_longer(
+#       cols = -ownership,
+#       names_to = c("variable", "stat"),
+#       names_pattern = "(.*)_(mean|sd|n)",
+#       values_to = "value"
+#     ) %>%
+#     pivot_wider(
+#       names_from = stat,
+#       values_from = value
+#     ) %>%
+#     mutate(
+#       lower_ci = mean - 1.96 * (sd / sqrt(n)),
+#       upper_ci = mean + 1.96 * (sd / sqrt(n))
+#     )
+#   
+#   # plot summaries with 95% CI
+#   ggplot(quickplotSummary, aes(x = ownership, y = mean, color = ownership)) +
+#     geom_point(size = 3) +
+#     geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2) +
+#     facet_wrap(~ variable, scales = "free_y") +
+#     labs(
+#       title = plot_title,
+#       x = "Ownership",
+#       y = "Mean ± 95% CI"
+#     ) +
+#     theme_minimal() +
+#     theme(
+#       axis.text.x = element_text(angle = 45, hjust = 1),
+#       legend.position = "none"
+#     )
+# }
+# 
+# allpoints_mean <- quickplotSummaryMean95(final2020, plot_title = "All Points: Mean and 95% CI")
+# 
+# allhabpoints_mean <- quickplotSummaryMean95(
+#   final2020, #%>% filter(point_leve_habitat > 45),
+#   plot_title = "AllPoints: Mean and 95% CI"
+# )
+# 
+# allforest_meanDistanceOnly <- quickplotSummaryMean95(
+#   final2020 %>% filter( distance_to_coastline < 100000),
+#   #final2020 %>% filter(cancov_2020 > 4000),
+#   plot_title = "AllPoints <84km : Mean and 95% CI")
+# 
+# allforest_meanDistanceOnlyCanCov <- quickplotSummaryMean95(
+#   final2020 %>% filter( distance_to_coastline < 84000, cancov_2020 >0),
+#   #final2020 %>% filter(cancov_2020 > 4000),
+#   plot_title = "Forest Points (>0% canopy) <84km : Mean and 95% CI")
+# 
+# cowplot::plot_grid(allforest_meanDistanceOnly,allforest_meanDistanceOnlyCanCov)
+# 
+# allhab100kmpoints_mean <- quickplotSummaryMean95(
+#   final2020 %>% filter(point_leve_habitat > 45, distance_to_coastline < 100000),
+#   plot_title = "Habitat > 45 & <100km from Coast: Mean and 95% CI"
+# )
+# 
+# allpoints_mean
+# allhabpoints_mean
+# allforest_mean
+# allhab100kmpoints_mean
+#   #  filter(distance_to_coastline < 100000) %>% 
+#   #filter(point_leve_habitat > 0) %>%
 
 
 #EXPORT OUTPUT #####
@@ -699,58 +690,60 @@ write.csv(final2020, "Outputs/PNW_2020_extracted_covars.csv")
 pt_elevations = read.csv("Outputs/elevation_at_each_point.csv")
 final2020 <- read.csv("Outputs/PNW_2020_extracted_covars.csv") %>%  left_join(pt_elevations)
 
-checkPoints <- vect(final2020, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
-plot(SDM2020, main = "Raster with 500m Grid Points")
-plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 
-#add in information on elevation at each point 
-pt_elevation <- read.csv("Outputs/elevation_at_each_point.csv") 
-
-lowhabitat_points <- final2020 %>% 
-  filter(habAmountDich_2000 <0.05)
-
-lowhabitat_points_federal <- final2020 %>% 
-  filter(habAmountDich_2000 <0.05) %>% 
-  filter(ownership == "Federal") 
-lowhabitat_points_state <- final2020 %>% 
-  filter(habAmountDich_2000 <0.05) %>% 
-  filter(ownership == "State")
-lowhabitat_points_private_industrial <- final2020 %>% 
-  filter(habAmountDich_2000 <0.05) %>% 
-  filter(ownership == "Private Industrial")
-lowhabitat_points_privateNonindustrial <- final2020 %>% 
-  filter(habAmountDich_2000 <0.05) %>% 
-  filter(ownership == "Private Non-industrial")
-
-
-lowhabitat_points_federal_100000m_elev794m <- final2020 %>% 
-  filter(habAmountDich_2000 <0.05) %>% 
-  filter(ownership == "Federal") %>%  
-  filter(distance_to_coastline <100000) %>%  
-  filter(cancov_2020 >-1) %>%  
-  left_join(pt_elevations) %>% 
-  filter(dem30m < q90elev)
-
-lowhabitat_points_private_industrial_100000m_elev794m <- final2020 %>% 
-  filter(habAmountDich_2000 <0.05) %>% 
-  filter(ownership == "Private Industrial") %>%  
-  filter(distance_to_coastline <100000) %>%  
-  filter(cancov_2020 >-1) %>%  
-  left_join(pt_elevations) %>%  
-  filter(dem30m < q90elev)
-
-checkPoints <- vect(lowhabitat_points_federal_84000m, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
-plot(SDM2020, main = "Raster with 500m Grid Points")
-plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
-
-#test what's happening in Qgis
-write.csv(final2020, "PNW_2020_extracted_covars.csv")
-#writeRaster(ownership_raster_resampled, "Rasters/ownership_raster_resampled.tif", overwrite=TRUE)
-write.csv(lowhabitat_points, "Rasters/points_less005_2km_hab_amount.csv")
-write.csv(lowhabitat_points_federal, "Rasters/federal_points_less005_2km_hab_amount.csv")
-write.csv(lowhabitat_points_state, "Rasters/state_points_less005_2km_hab_amount.csv")
-write.csv(lowhabitat_points_private_industrial, "Rasters/privateIndustrial_points_less005_2km_hab_amount.csv")
-write.csv(lowhabitat_points_privateNonindustrial, "Rasters/privateNonIndustrial_points_less005_2km_hab_amount.csv")
-write.csv(lowhabitat_points_federal_100000m_elev794m, "Rasters/lowhabitat_points_federal_100000m_elev794m.csv")
-write.csv(lowhabitat_points_private_industrial_100000m_elev794m, "Rasters/lowhabitat_points_private_industrial_100000m_elev794m.csv")
+#Export for visual checks in Qgis 
+# checkPoints <- vect(final2020, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
+# plot(SDM2020, main = "Raster with 500m Grid Points")
+# plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+# 
+# #add in information on elevation at each point 
+# pt_elevation <- read.csv("Outputs/elevation_at_each_point.csv") 
+# 
+# lowhabitat_points <- final2020 %>% 
+#   filter(habAmountDich_2000 <0.05)
+# 
+# lowhabitat_points_federal <- final2020 %>% 
+#   filter(habAmountDich_2000 <0.05) %>% 
+#   filter(ownership == "Federal") 
+# lowhabitat_points_state <- final2020 %>% 
+#   filter(habAmountDich_2000 <0.05) %>% 
+#   filter(ownership == "State")
+# lowhabitat_points_private_industrial <- final2020 %>% 
+#   filter(habAmountDich_2000 <0.05) %>% 
+#   filter(ownership == "Private Industrial")
+# lowhabitat_points_privateNonindustrial <- final2020 %>% 
+#   filter(habAmountDich_2000 <0.05) %>% 
+#   filter(ownership == "Private Non-industrial")
+# 
+# 
+# lowhabitat_points_federal_100000m_elev794m <- final2020 %>% 
+#   filter(habAmountDich_2000 <0.05) %>% 
+#   filter(ownership == "Federal") %>%  
+#   filter(distance_to_coastline <100000) %>%  
+#   filter(cancov_2020 >-1) %>%  
+#   left_join(pt_elevations) %>% 
+#   filter(dem30m < q90elev)
+# 
+# lowhabitat_points_private_industrial_100000m_elev794m <- final2020 %>% 
+#   filter(habAmountDich_2000 <0.05) %>% 
+#   filter(ownership == "Private Industrial") %>%  
+#   filter(distance_to_coastline <100000) %>%  
+#   filter(cancov_2020 >-1) %>%  
+#   left_join(pt_elevations) %>%  
+#   filter(dem30m < q90elev)
+# 
+# checkPoints <- vect(lowhabitat_points_federal_84000m, geom = c("x", "y"), crs = "EPSG:5070")  # Specify a CRS, e.g., WGS84
+# plot(SDM2020, main = "Raster with 500m Grid Points")
+# plot(checkPoints, add = TRUE, col = "blue", pch = 16, cex = 0.5)
+# 
+# #test what's happening in Qgis
+# write.csv(final2020, "PNW_2020_extracted_covars.csv")
+# #writeRaster(ownership_raster_resampled, "Rasters/ownership_raster_resampled.tif", overwrite=TRUE)
+# write.csv(lowhabitat_points, "Rasters/points_less005_2km_hab_amount.csv")
+# write.csv(lowhabitat_points_federal, "Rasters/federal_points_less005_2km_hab_amount.csv")
+# write.csv(lowhabitat_points_state, "Rasters/state_points_less005_2km_hab_amount.csv")
+# write.csv(lowhabitat_points_private_industrial, "Rasters/privateIndustrial_points_less005_2km_hab_amount.csv")
+# write.csv(lowhabitat_points_privateNonindustrial, "Rasters/privateNonIndustrial_points_less005_2km_hab_amount.csv")
+# write.csv(lowhabitat_points_federal_100000m_elev794m, "Rasters/lowhabitat_points_federal_100000m_elev794m.csv")
+# write.csv(lowhabitat_points_private_industrial_100000m_elev794m, "Rasters/lowhabitat_points_private_industrial_100000m_elev794m.csv")
 

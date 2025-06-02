@@ -1,13 +1,10 @@
 #Extract covariates from simulated rasters. To fit with our models we need: 
+
 #1. Distance to coast ; scaleCoastDist          
 #2. Habitat amount 100 and 2km;  scaleHabAmount100 and scaleHabAmount2000                    
 #3. Edge density 100 and 2km ; scaleEdgeDens100 and scaleEdgeDens2000    
 
-#mutate(edgeArea100 = (edgeRook_100_40 * (pi * 100^2)) / (habAmountDich_100 * (pi * 100^2) + 1)) %>% 
-#mutate(edgeArea2000 = (edgeRook_2000_40 * (pi * 2000^2)) / (habAmountDich_2000 * (pi * 2000^2) + 1)) %>%  
 
-#NOTE; when we read in the simulated rasters,rasters are based on number of cells rather than 
-#area per se. So I can treat each cell as a 100X100 cell 
 library(terra)
 library(sf)
 library(exactextractr)

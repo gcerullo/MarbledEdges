@@ -2,6 +2,8 @@
 library(terra)
 library(tidyverse)
 
+#potential yield data are downloaded from: https://www.arcgis.com/home/item.html?id=b1b10e7890ea4116b863ae790d9b718c
+
 #read in ownership shapefile
 ownership <- vect("Rasters/land_ownership/All_merge.shx")
 final2020 <- readRDS("Outputs/PNW_2020_extracted_covars.rds") %>%   #read in starting occupancy for 2020 from scrippt 8

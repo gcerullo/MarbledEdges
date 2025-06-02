@@ -28,15 +28,6 @@ print(presence_absence_summary)
       #The second ~: Defines covariates for occupancy probability (ψ).
 #Fit occupancy models 
 
-# Load required libraries for data manipulation and occupancy modeling
-library(tidyverse)
-library(unmarked)
-library(terra)
-library(ggcorrplot)
-library(AICcmodavg)
-
-#read in unmarked object
-analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
 
 generate_starts <- function(previous_model, new_terms, new_terms_starts) {
   # Extract coefficients from the previous model
@@ -294,6 +285,7 @@ library(gt)
 library(broom)
 
 model <- readRDS("Models/final_model_5thMay2025.rds")
+
 # Extract coefficients
 
 # Helper function to extract, rename, tag, and compute 95% CI

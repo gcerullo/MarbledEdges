@@ -1,6 +1,3 @@
-#What if we reduce edge amount? 
-#And what if we use a model without edge at all? 
-
 
 library(terra)
 library(sf)
@@ -417,7 +414,6 @@ results_good <- results_good %>%  mutate(OceanYear = "Good Ocean Years")
 log_odds_se <- rbind(results_bad, results_good)
 log_odds_se <- log_odds_se %>%  left_join(final2020)
 
-#saveRDS(percentage_change_se, "Outputs/percentage_change_se_05edge_reduction.rds")
 #saveRDS(log_odds_se, "Outputs/log_odds_se_05edge_reduction.rds")
 
 #=============================================================
@@ -568,16 +564,10 @@ ggsave(
   bg = "white"                          # Set background to white
 )
 
-############|
-############|##
-############|#
-############|
-######
-
-#get quantiles of elevation  
-Allelev = as.numeric(quantile(elevational_range_df$dem30m, 1, na.rm = TRUE))
-q95elev = as.numeric(quantile(elevational_range_df$dem30m, 0.95, na.rm = TRUE))
-q90elev = as.numeric(quantile(elevational_range_df$dem30m, 0.90, na.rm = TRUE))
-q80elev = as.numeric(quantile(elevational_range_df$dem30m, 0.80, na.rm = TRUE))
+# #get quantiles of elevation  
+# Allelev = as.numeric(quantile(elevational_range_df$dem30m, 1, na.rm = TRUE))
+# q95elev = as.numeric(quantile(elevational_range_df$dem30m, 0.95, na.rm = TRUE))
+# q90elev = as.numeric(quantile(elevational_range_df$dem30m, 0.90, na.rm = TRUE))
+# q80elev = as.numeric(quantile(elevational_range_df$dem30m, 0.80, na.rm = TRUE))
 
 

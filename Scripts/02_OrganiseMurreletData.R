@@ -7,8 +7,16 @@ library(terra)
 library(ggcorrplot)
  options(scipen = 999)
 
+ #inputs 
 can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif") #canopy cover of conifers
- 
+PC1 <- read.csv("Outputs/PC1_scaled_inverted.csv") 
+
+#murrelet survey detection data
+landscapeVars  <- read.csv("Inputs/LandscapeVariables.csv")
+siteData  <- read.csv("Inputs/siteData.csv")
+surveys  <- read.csv("Inputs/MurreletSurveys.csv") %>% dplyr::select(-X) #multipe repeats a some stations
+pointsInRoiAndSamplingWindow  <- read.csv("Inputs/pointsInRoiAndSamplingWindow.csv") %>%  
+  mutate(crs = "EPSG:32610")
 
 #Information on predictor variables ####
 {
@@ -43,13 +51,6 @@ can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif
   # sdEdgeArea2000: Standard deviation of edge area within 2000 meters.
 }
 
-#read in inputs 
-#save outputs as csvs 
-landscapeVars  <- read.csv("Inputs/LandscapeVariables.csv")
-siteData  <- read.csv("Inputs/siteData.csv")
-surveys  <- read.csv("Inputs/MurreletSurveys.csv") %>% dplyr::select(-X) #multipe repeats a some stations
-pointsInRoiAndSamplingWindow  <- read.csv("Inputs/pointsInRoiAndSamplingWindow.csv") %>%  
-  mutate(crs = "EPSG:32610")
 
 #take a look at the stratification of survey points 
 
@@ -61,7 +62,7 @@ plot(can_cov, main = "Sampled points on can cov")
 plot(points_5070, add = TRUE, col = "blue", pch = 16, cex = 0.5)
 
 #read in PC1 data calculated in script 1 #
-PC1_all <- read.csv("Outputs/PC1_scaled_inverted.csv") %>%  
+PC1_all <- PC1 %>%  
   dplyr::select(Value_scaled, Year) %>%  #dplyr::select PC1 which has already been inverted and scaled
   rename(PC1 = Value_scaled, 
          year = Year) %>%  
@@ -201,6 +202,7 @@ analysisData = unmarkedFrameOccu(y = y, siteCovs = analysisSites, obsCovs = surv
   # dplyr::select(id, cancov_2020) %>%  
   # rename(point_id =  id) 
 #write.csv(elevational_range_df, "Inputs/pointsInRoiAndSamplingWindow_withDEM.csv")
+
 elevational_range_df <- read.csv("Inputs/pointsInRoiAndSamplingWindow_withDEM.csv")
 hist(elevational_range_df$dem30m) 
 (max)
@@ -264,11 +266,11 @@ dplyr::select(coastDist,habAmountDich_100,habAmountDich_2000,edgeRook_100_40,edg
   )
 
 
-
+#save ouptuts #####
 #save  unmarked dataframe ####
 saveRDS(analysisData, file = "Outputs/analysisDataUnmarked.rds")
 
-#Export clearance survey sites
+#Export clearance survey site covariates figure ####s
 ggsave(
   filename = "Figures/clearance_survey_all_site_covars.png",               # File path and name
   plot = allsites ,          
@@ -279,7 +281,6 @@ ggsave(
   device = "png",                       # Output format
   bg = "white"                          # Set background to white
 )
-
 
 ggsave(
   filename = "Figures/clearance_survey_mamu_detected_site_covars.png",               # File path and name
