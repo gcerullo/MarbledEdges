@@ -84,8 +84,10 @@ Fig1
 #-------------------------
 #05_BuildLandscapes
 #-------------------------
+
 #Script Description 
-Builds hypothetical 1Mha simulated logging landscapes (outputted as rasters) matched by timber production target but varying in fragmentation per se
+Builds hypothetical 1Mha simulated logging landscapes (outputted as rasters) 
+matched by timber production target but varying in fragmentation per se
 
 #Inputs
 source("Inputs/Scenarios/Functions.R")
@@ -104,8 +106,8 @@ Rasters/production_0.58
 #-------------------------
 
 #Script Description 
-Quantifies edge amount and habitat amount around forest points for simulated 1Mha landscapes
-
+Quantifies edge amount and habitat amount around forest points for simulated 
+1Mha landscapes
 NB: There is a hard-coded decision to make regarding which production target landscape to explore. 
 
 #Outputs
@@ -137,9 +139,9 @@ vect("Rasters/land_ownership/All_merge.shx") #landownership shapefile
 
 #GNN raster data must be requested at: https://lemmadownload.forestry.oregonstate.edu/
 #canopy cover of all trees
-can_cov_all_trees <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_2020.tif")
+Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_2020.tif
 #canopy cover of conifers
-can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif")
+Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif
 #SDM of murrelets for year 2020
 Rasters/MAMU_SDMs/MAMU_maxent_cloglog_2020_20220208.tif
 
@@ -154,7 +156,8 @@ Outputs/PNW_2020_extracted_covars.csv #covariates for all points
 
 #Script Description 
 Scales covariates for filtered points across the PNW, and then uses best-fitting model
-to predict occupancy for each point under current 2020 configurations and with different amounts of edge reduction. Also, plots covariates (e.g. edge amount and habitat amount) for 2020 lands.
+to predict occupancy for each point under current 2020 configurations and with different
+amounts of edge reduction. Also, plots covariates (e.g. edge amount and habitat amount) for 2020 lands.
 
 #Outputs
 Outputs/log_odds_se_05edge_reduction.rds #log odds of occupancy from reducing edge 50%
