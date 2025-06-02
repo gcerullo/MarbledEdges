@@ -85,7 +85,8 @@ Fig1
 #05_BuildLandscapes
 #-------------------------
 #Script Description 
-Builds hypothetical 1Mha simulated logging landscapes (outputted as rasters) matched by timber production target but varying in fragmentation per se
+Builds hypothetical 1Mha simulated logging landscapes (outputted as rasters) 
+matched by timber production target but varying in fragmentation per se
 
 #Inputs
 source("Inputs/Scenarios/Functions.R")
@@ -104,8 +105,8 @@ Rasters/production_0.58
 #-------------------------
 
 #Script Description 
-Quantifies edge amount and habitat amount around forest points for simulated 1Mha landscapes
-
+Quantifies edge amount and habitat amount around forest points for simulated 
+1Mha landscapes
 NB: There is a hard-coded decision to make regarding which production target landscape to explore. 
 
 #Outputs
@@ -154,7 +155,8 @@ Outputs/PNW_2020_extracted_covars.csv #covariates for all points
 
 #Script Description 
 Scales covariates for filtered points across the PNW, and then uses best-fitting model
-to predict occupancy for each point under current 2020 configurations and with different amounts of edge reduction. Also, plots covariates (e.g. edge amount and habitat amount) for 2020 lands.
+to predict occupancy for each point under current 2020 configurations and with different
+amounts of edge reduction. Also, plots covariates (e.g. edge amount and habitat amount) for 2020 lands.
 
 #Outputs
 Outputs/log_odds_se_05edge_reduction.rds #log odds of occupancy from reducing edge 50%
