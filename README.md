@@ -3,11 +3,17 @@
 These scripts are to replicate in Rstudio an analysis exploring how ocean conditions and edge amount influence marbled murrelet occupancy. The scripts should be run in consecutive order. After downloading the MarbledEdges.Rproj project, you will need to reproduce the following file structure for scripts to run smoothly:
 
 -MarbledEdges.Rproj
+
 -Scripts
+
 -Inputs
+
 -Outputs
+
 -Models
+
 -Rasters
+
 -Figures
 
 #Scripts: 
