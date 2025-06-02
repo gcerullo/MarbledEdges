@@ -37,22 +37,22 @@ pt_elevation <- read.csv("Outputs/elevation_at_each_point.csv")
 #read in means and SDs of covariates from original model to enable coorrect scalings
 meansAndSds
 
-#remind ourselves of what model has seen unscaled
-detected_sites <- analysisSurveys %>% dplyr::select(id, detected)
-analysisSites %>% 
-  
-  #-------------------------------------------
-#if we only want to consider sites where there was a detection
-left_join(detected_sites, by = "id") %>%  
-  filter(detected == 1) %>% 
-  #-------------------------------------------
-dplyr::select(coastDist,habAmountDich_100,habAmountDich_2000,edgeRook_100_40,edgeRook_2000_40) %>%  
-  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>% 
-  ggplot( aes(x = Value)) +
-  geom_histogram(fill = "blue", color = "white", alpha = 0.7) +
-  facet_wrap(~ Variable, scales = "free") +
-  theme_minimal() +
-  labs(title = "Histograms of Dataframe Columns", x = "Value", y = "Frequency")
+# #remind ourselves of what model has seen unscaled
+# detected_sites <- analysisSurveys %>% dplyr::select(id, detected)
+# analysisSites %>% 
+#   
+#   #-------------------------------------------
+# #if we only want to consider sites where there was a detection
+# left_join(detected_sites, by = "id") %>%  
+#   filter(detected == 1) %>% 
+#   #-------------------------------------------
+# dplyr::select(coastDist,habAmountDich_100,habAmountDich_2000,edgeRook_100_40,edgeRook_2000_40) %>%  
+#   pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>% 
+#   ggplot( aes(x = Value)) +
+#   geom_histogram(fill = "blue", color = "white", alpha = 0.7) +
+#   facet_wrap(~ Variable, scales = "free") +
+#   theme_minimal() +
+#   labs(title = "Histograms of Dataframe Columns", x = "Value", y = "Frequency")
 
 #-------------------------------------------------------------
 #read in functions ####
@@ -260,12 +260,13 @@ results_all_edges <- lapply(decrease_edge, function(decrease) {
     ) %>%
     mutate(decrease_factor = decrease) # Add a column to track the reduction factor
 })
+
 # Combine all the results into one data frame for comparison
 results_all_edges <- bind_rows(results_all_edges)
 results_all_edges_processed <- results_all_edges %>%  prep_and_predict_parallelised() %>%  
                 left_join(pt_elevation)
 
-saveRDS(results_all_edges_processed, "Outputs/ReduceLandscapeAndLocalEdges.rds" )
+#saveRDS(results_all_edges_processed, "Outputs/ReduceLandscapeAndLocalEdges.rds" )
 
 
 #FOR LANDSCAPE EDGES ONLY 
@@ -282,11 +283,11 @@ results_landscape_edges <- lapply(decrease_edge, function(decrease) {
 results_landscape_edges <- bind_rows(results_landscape_edges)
 results_landscape_edges_processed <- results_landscape_edges %>%  prep_and_predict_parallelised() %>%  
   left_join(pt_elevation)
-saveRDS(results_landscape_edges_processed, "Outputs/ReduceLandscapeEdges.rds" )
+#saveRDS(results_landscape_edges_processed, "Outputs/ReduceLandscapeEdges.rds" )
 
 #===========================================================
 # #calculate uncertainty around percentage change in edge amount
-# NOTE - we have to do this on the logis scale! 
+ 
 
 final2020 <- readRDS("Outputs/PNW_2020_extracted_covars.rds")    #read in starting occupancy for 2020 from scrippt 8
   
@@ -307,6 +308,7 @@ predict_df <- lapply(decrease_edge, function(decrease) {
     mutate(decrease_factor = decrease)  # Add a column to track the reduction factor
  
     })
+
 predict_df <- bind_rows(predict_df)
 predict_df <- predict_df %>% 
   filter(cancov_2020 > -1) %>% #remove non-forest habitat points
