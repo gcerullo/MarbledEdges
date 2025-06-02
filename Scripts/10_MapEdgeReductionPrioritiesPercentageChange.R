@@ -14,7 +14,6 @@ long_lat <- final2020 %>% dplyr::select(point_id, x, y)
 results_all_edges <- results_all_edges %>% left_join(long_lat)
 can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif") #canopy cover of conifers
 
-
 #--------------------------------
 #carry out initial filter
 results_all_edges <- results_all_edges %>% 
