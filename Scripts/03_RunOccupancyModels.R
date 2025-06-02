@@ -215,64 +215,121 @@ mod_performance <- modSel(model_list_all)
 #Compare by K-fold cross validation for the 4 best-performing models
 #------------------------------------------------------------------
 
+
+# Define the k-fold cross-validation 
+k_fold_mod1 <- crossVal(
+  object = simple_detection_model,        #  fitted model
+  method = "Kfold",                       # Specify k-fold validation
+  folds = 10,                             # Number of folds (can adjust as needed)
+  statistic = unmarked:::RMSE_MAE ,       # Use default RMSE and MAE statistics
+  parallel = FALSE)
+
+k_fold_mod2 <- crossVal(
+  object = dist_model,    
+  method = "Kfold",                      
+  folds = 10,                             
+  statistic = unmarked:::RMSE_MAE ,      
+  parallel = FALSE)
+
+k_fold_mod3 <- crossVal(
+  object = model_with_habitat,    
+  method = "Kfold",                      
+  folds = 10,                             
+  statistic = unmarked:::RMSE_MAE ,      
+  parallel = FALSE)
+
+k_fold_mod4 <- crossVal(
+  object = model_edge_amount_interactions,   
+  method = "Kfold",                       
+  folds = 10,                            
+  statistic = unmarked:::RMSE_MAE ,       
+  parallel = FALSE)
+
+k_fold_mod5 <- crossVal(
+  object = pc1_interaction_model,    
+  method = "Kfold",                      
+  folds = 10,                             
+  statistic = unmarked:::RMSE_MAE ,       
+  parallel = FALSE)
+
+k_fold_mod6 <- crossVal(
+  object = PC1_two_way,    
+  method = "Kfold",                       
+  folds = 10,                          
+  statistic = unmarked:::RMSE_MAE ,       
+  parallel = FALSE)
+
+k_fold_mod7 <- crossVal(
+  object = multiple_two_way,    
+  method = "Kfold",                       
+  folds = 10,                            
+  statistic = unmarked:::RMSE_MAE ,       
+  parallel = FALSE)
+
+k_fold_mod8 <- crossVal(
+  object = threeway_interaction_model,    
+  method = "Kfold",                       
+  folds = 10,                             
+  statistic = unmarked:::RMSE_MAE ,      
+  parallel = FALSE)
+
+ kfold_list <- list(k_fold_mod1,k_fold_mod2, k_fold_mod3, k_fold_mod4, k_fold_mod5,k_fold_mod6, k_fold_mod7, k_fold_mod8)
+ saveRDS(kfold_list, "Models/Kfold_all_model_performance.rds")
+
+
 #define the kfold cross-validation for 1-way interaction model
 
-# Define the k-fold cross-validation Model 1 
-k_fold_results_modelwithhabitat <- crossVal(
-  object = model_with_habitat,    # Your fitted model
-  method = "Kfold",                       # Specify k-fold validation
-  folds = 10,                             # Number of folds (can adjust as needed)
-  statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
-  parallel = FALSE)
+# 
+# 
+# # Define the k-fold cross-validation Model 3 
+# k_fold_results_modelwithhabitat <- crossVal(
+#   object = model_with_habitat,    # Your fitted model
+#   method = "Kfold",                       # Specify k-fold validation
+#   folds = 10,                             # Number of folds (can adjust as needed)
+#   statistic = unmarked:::RMSE_MAE ,       # Use default RMSE and MAE statistics
+#   parallel = FALSE)
+# 
+# # Define the k-fold cross-validation Model 5
+# 
+# k_fold_results_pc1 <- crossVal(
+#   object = pc1_interaction_model,    
+#   method = "Kfold",                 
+#   folds = 10,                      
+#   statistic = unmarked:::RMSE_MAE ,                  
+#   parallel = FALSE)
+# 
+# # Define the k-fold cross-validation Model 7 
+# 
+# # Define the k-fold cross-validation
+# k_fold_results_multiple_two_way <- crossVal(
+#   object = multiple_two_way,    
+#   method = "Kfold",                       
+#   folds = 10,                             
+#   statistic = unmarked:::RMSE_MAE ,                   
+#   parallel = FALSE)
+# 
+# 
+# # Define the k-fold cross-validation model 8 
+# k_fold_results_threeway_interaction <- crossVal(
+#   object = threeway_interaction_model,    
+#   method = "Kfold",                      
+#   folds = 10,                             
+#   statistic = unmarked:::RMSE_MAE ,                 
+#   parallel = FALSE)
+# 
+# # View results - seems like there is not much difference in model performance in terms of RMSE and MAE
+# print(k_fold_results_modelwithhabitat)
+# print(k_fold_results_pc1)
+# print(k_fold_results_multiple_two_way)
+# print(k_fold_results_threeway_interaction)
+# 
+# kfold_list <- list(k_fold_results_modelwithhabitat,k_fold_results_pc1,k_fold_results_multiple_two_way,k_fold_results_threeway_interaction)
 
-# Define the k-fold cross-validation Model 2 
-
-k_fold_results_pc1 <- crossVal(
-  object = pc1_interaction_model,    # Your fitted model
-  method = "Kfold",                       # Specify k-fold validation
-  folds = 10,                             # Number of folds (can adjust as needed)
-  statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
-  parallel = FALSE)
-
-# Define the k-fold cross-validation Model 3 
-
-# Define the k-fold cross-validation
-k_fold_results_multiple_two_way <- crossVal(
-  object = multiple_two_way,    # Your fitted model
-  method = "Kfold",                       # Specify k-fold validation
-  folds = 10,                             # Number of folds (can adjust as needed)
-  statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
-  parallel = FALSE)
-
-
-# Define the k-fold cross-validation model 4 
-k_fold_results_threeway_interaction <- crossVal(
-  object = multiple_interaction_model,    # Your fitted model
-  method = "Kfold",                       # Specify k-fold validation
-  folds = 10,                             # Number of folds (can adjust as needed)
-  statistic = unmarked:::RMSE_MAE ,                   # Use default RMSE and MAE statistics
-  parallel = FALSE)
-
-# View results - seems like there is not much difference in model performance in terms of RMSE and MAE
-print(k_fold_results_modelwithhabitat)
-print(k_fold_results_pc1)
-print(k_fold_results_multiple_two_way)
-print(k_fold_results_multiple_interaction)
-
-kfold_list <- list(k_fold_results_modelwithhabitat,k_fold_results_pc1,k_fold_results_multiple_two_way,k_fold_results_multiple_interaction)
-
-#Save outputs
-#save K-fold cross-validation performance 
-saveRDS(kfold_list, "Models/Kfold_model_performance.rds")
-kfold_list <- readRDS("Models/Kfold_model_performance.rds")
-print(kfold_list)
-
-#F-fold written summary:
-#Key Takeaways:
-#Best Overall Performance: Model 4 performs slightly better in terms of both RMSE and MAE estimates but has higher variability (SD) compared to others.
-#Most Consistent Performance: Model 1 exhibits the smallest variability in both RMSE and MAE, making it the most stable across folds.
-#Marginal Differences: The differences in RMSE and MAE estimates across models are minimal (0.0001 to 0.0003)
-#save best-performing model 
+# #Save outputs
+# #save K-fold cross-validation performance 
+# saveRDS(kfold_list, "Models/Kfold_model_performance.rds")
+# kfold_list <- readRDS("Models/Kfold_model_performance.rds")
+# print(kfold_list)
 
 
 #Save best model ####
