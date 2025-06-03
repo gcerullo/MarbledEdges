@@ -214,7 +214,15 @@ mod_performance <- modSel(model_list_all)
 #------------------------------------------------------------------
 #Compare by K-fold cross validation for the 4 best-performing models
 #------------------------------------------------------------------
-
+#NB:
+#simple_detection = model 1 
+# dist_model = model 2 
+#model_with_habitat = model 3
+#model_edge_amount_interactions = model 4 
+#pc1_interaction_model = model 5
+#PC1_two_way = model 6
+#multiple_two_way = model 7 
+#threeway_interaction_model = model 8
 
 # Define the k-fold cross-validation 
 k_fold_mod1 <- crossVal(
@@ -274,62 +282,39 @@ k_fold_mod8 <- crossVal(
   parallel = FALSE)
 
  kfold_list <- list(k_fold_mod1,k_fold_mod2, k_fold_mod3, k_fold_mod4, k_fold_mod5,k_fold_mod6, k_fold_mod7, k_fold_mod8)
- saveRDS(kfold_list, "Models/Kfold_all_model_performance.rds")
+# saveRDS(kfold_list, "Models/Kfold_all_model_performance.rds")
 
-
-#define the kfold cross-validation for 1-way interaction model
-
-# 
-# 
-# # Define the k-fold cross-validation Model 3 
-# k_fold_results_modelwithhabitat <- crossVal(
-#   object = model_with_habitat,    # Your fitted model
-#   method = "Kfold",                       # Specify k-fold validation
-#   folds = 10,                             # Number of folds (can adjust as needed)
-#   statistic = unmarked:::RMSE_MAE ,       # Use default RMSE and MAE statistics
-#   parallel = FALSE)
-# 
-# # Define the k-fold cross-validation Model 5
-# 
-# k_fold_results_pc1 <- crossVal(
-#   object = pc1_interaction_model,    
-#   method = "Kfold",                 
-#   folds = 10,                      
-#   statistic = unmarked:::RMSE_MAE ,                  
-#   parallel = FALSE)
-# 
-# # Define the k-fold cross-validation Model 7 
-# 
-# # Define the k-fold cross-validation
-# k_fold_results_multiple_two_way <- crossVal(
-#   object = multiple_two_way,    
-#   method = "Kfold",                       
-#   folds = 10,                             
-#   statistic = unmarked:::RMSE_MAE ,                   
-#   parallel = FALSE)
-# 
-# 
-# # Define the k-fold cross-validation model 8 
-# k_fold_results_threeway_interaction <- crossVal(
-#   object = threeway_interaction_model,    
-#   method = "Kfold",                      
-#   folds = 10,                             
-#   statistic = unmarked:::RMSE_MAE ,                 
-#   parallel = FALSE)
-# 
-# # View results - seems like there is not much difference in model performance in terms of RMSE and MAE
-# print(k_fold_results_modelwithhabitat)
-# print(k_fold_results_pc1)
-# print(k_fold_results_multiple_two_way)
-# print(k_fold_results_threeway_interaction)
-# 
-# kfold_list <- list(k_fold_results_modelwithhabitat,k_fold_results_pc1,k_fold_results_multiple_two_way,k_fold_results_threeway_interaction)
-
-# #Save outputs
-# #save K-fold cross-validation performance 
-# saveRDS(kfold_list, "Models/Kfold_model_performance.rds")
-# kfold_list <- readRDS("Models/Kfold_model_performance.rds")
-# print(kfold_list)
+ kfold_list <- readRDS("Models/Kfold_all_model_performance.rds")
+ 
+ # Extract RMSE and MAE summary values from each unmarkedCrossVal object
+ extract_cv_metrics <- function(obj, i) {
+   sum_df <- obj@summary
+   tibble(
+     Model = paste0("Model ", i),
+     RMSE = round(sum_df$Estimate[1], 4),
+     RMSE_SD = round(sum_df$SD[1], 4),
+     MAE = round(sum_df$Estimate[2], 4),
+     MAE_SD = round(sum_df$SD[2], 4)
+   )
+ }
+ 
+ # Apply across all models
+ kfold_summary_df <- map_dfr(seq_along(kfold_list), ~ extract_cv_metrics(kfold_list[[.x]], .x))
+ 
+ # Create and style the flextable
+ ft_kfold <- flextable(kfold_summary_df) %>%
+   set_caption("Table 3. Ten-fold cross-validation results from occupancy models showing RMSE and MAE with standard deviations.") %>%
+   autofit() %>%
+   align(align = "center", part = "all") %>%
+   bold(i = 1, part = "header")
+ 
+ # Export to Word
+ doc <- read_docx() %>%
+   body_add_par("Cross-validation Performance", style = "heading 1") %>%
+   body_add_flextable(ft_kfold)
+ 
+ print(doc, target = "Models/Tables/kfold_model_comparison_table.docx")
+ 
 
 
 #Save best model ####
@@ -338,15 +323,6 @@ saveRDS(multiple_two_way, "Models/final_model_5thMay2025.rds" )
 #---------------------------------------------------------
 #Make tables of model performance 
 #---------------------------------------------------------
-#NB:
-#simple_detection = model 1 
-# dist_model = model 2 
-#model_with_habitat = model 3
-#model_edge_amount_interactions = model 4 
-#pc1_interaction_model = model 5
-#PC1_two_way = model 6
-#multiple_two_way = model 7 
-#threeway_interaction_model = model 8
 
 # make a table of model coefficients####
 models
