@@ -13,6 +13,8 @@ library(ggh4x)
 source("scripts/02_OrganiseMurreletData.R")
 source("Functions/se_diff_occu.R")#custom function for calculating % change and SE on logis scale
 source("Functions/se_odds_ratio_occu.R")#calculate log odds ration 
+source("Functions/raw_diff_occu.R")#calculate log odds ration 
+
 #----------------------------------------------------------------
 # read in inputs #####
 covariates <- readRDS("Outputs/ScaledCovariates.rds") %>%   
@@ -415,6 +417,57 @@ log_odds_se <- rbind(results_bad, results_good)
 log_odds_se <- log_odds_se %>%  left_join(final2020)
 
 #saveRDS(log_odds_se, "Outputs/log_odds_se_05edge_reduction.rds")
+
+
+####
+#For raw occupancy difference only 
+# 
+# #select one #HARD CODED DECISION 
+# dataset <- predict_df50_good
+# dataset <- predict_df50_bad
+# 
+# run_dataset <- dataset
+# 
+# # Get unique point IDs
+# point_ids <- unique(run_dataset$point_id)
+# results <- vector("list", length(point_ids))
+# 
+# results<- list()
+# 
+# # Loop through unique point IDs
+# for (point_id in unique(run_dataset$point_id)) {
+#   # Filter the dataset for the current point ID
+#   current_data <- run_dataset %>% filter(point_id == !!point_id)
+#   
+#   # Apply the se_log_odds_occ function
+#   estim <- se_raw_diff_occ(
+#     newdat = current_data,
+#     fit = model,
+#     type = "state",
+#     order = c(2, 1)
+#   )
+#   
+#   # Store the result
+#   results[[as.character(point_id)]] <- estim
+# }
+# 
+# # Optionally, combine results into a single data frame if needed
+# final_results <- bind_rows(results, .id = "point_id")
+# final_results_good <- final_results %>% left_join(results_all_edges_good)
+# #saveRDS(final_results_good, "Outputs/good_years_50pcEdgeReduction_raw_occ_diff_SE.rds")
+# 
+# final_results_bad <- bind_rows(results, .id = "point_id")
+# final_results_bad <- final_results_bad %>% left_join(results_all_edges_bad)
+# #saveRDS(final_results_bad, "Outputs/bad_years_50pcEdgeReduction_raw_occ_diff_SE.rds")
+# results_bad <- final_results_bad %>%  mutate(OceanYear = "Bad Ocean Years") 
+# results_good <- final_results_good %>%  mutate(OceanYear = "Good Ocean Years") 
+# raw_diff_se <- rbind(results_bad, results_good)
+# raw_diff_se <- raw_diff_se %>%  left_join(final2020)
+# saveRDS(raw_diff_se, "Outputs/raw_diff_se_05edge_reduction.rds")
+
+
+##
+
 
 #=============================================================
 #Plot the distribution of edge and habitat amount for different ownership classifications
