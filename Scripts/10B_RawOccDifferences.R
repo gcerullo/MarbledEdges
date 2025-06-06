@@ -147,6 +147,10 @@ map_edge_priority <- function(
   png(paste0(output_prefix, "occ_se_map.png"), width = 3000, height = 3000, res = 300)
   par(mfrow = c(2, 2), mar = c(1, 1, 3, 1), oma = c(4, 2, 2, 2))
   
+  # Export maps
+  pdf(paste0(output_prefix, "occ_se_map.pdf"), width = 10, height = 10) # Use PDF export
+  par(mfrow = c(2, 2), mar = c(1, 1, 3, 1), oma = c(4, 2, 2, 2))
+  
   # Plot good year occupancy change
   plot(background_raster, col = gray.colors(100, start = 1, end = 0),
        legend = FALSE, axes = FALSE, box = FALSE)
@@ -234,6 +238,10 @@ map_edge_priority_binary <- function(
   
   # Export map: binary priorities
   png(paste0(output_prefix, "binary_map.png"), width = 1500, height = 1200, res = 300)
+  par(mfrow = c(1, 3), mar = c(0.5, 0.5, 3, 0.5))
+  
+  # Export map: binary priorities
+  pdf(paste0(output_prefix, "binary_map.pdf"), width = 10, height = 8) # Use PDF export
   par(mfrow = c(1, 3), mar = c(0.5, 0.5, 3, 0.5))
   
   # Named list of rasters and their colors
