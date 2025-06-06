@@ -92,66 +92,6 @@ quantilesOccChange50quantileBadYears <- plot_data_histogram(decreaseEdgebadYears
 # quantilesOccChange100quantileBadYears <- plot_data_histogram(decreaseEdgegoodYears, OccChange100quantile)
 plot_data_histogram(decreaseEdgegoodYears, OccChange50quantile)
 
-# #-----------------------------------------------
-# #Map priorities for reducing edges #####
-# 
-# # #priority lands
-#  TopLandsToReduceEdgeGoodYears <- decreaseEdgegoodYears %>% filter(OccChange50quantile >9)  
-# 
-#  TopLandsToReduceEdgeBadYears <- decreaseEdgebadYears %>% filter(OccChange50quantile >9) 
-# # 
-# # # Convert the data to a spatial object
-#  good_sf <- vect(TopLandsToReduceEdgeGoodYears, geom = c("x", "y"), crs = "EPSG:5070")
-#  bad_sf <- vect(TopLandsToReduceEdgeBadYears, geom = c("x", "y"), crs = "EPSG:5070")
-# # 
-# # #Define the extent and resolution
-# # # Create a raster with the desired extent and resolution
-#  raster_template <- rast(good_sf, resolution = 1000) 
-#  crs(raster_template) <- "EPSG:5070"  # Set CRS to EPSG 5070
-# # 
-# # #reducing edge here would be most beneficial in good ocean years 
-# # #................................................................
-# # #plot quantiles
-#  good_raster <- rasterize(good_sf, raster_template, field = "OccChange50quantile", fun = "first", background = NA)
-# plot(good_raster)
-# # 
-# good_raster <- !is.na(good_raster) * 1 #get 1,0
-# # Replace all 0s with NA
-# good_raster[good_raster == 0] <- NA
-# plot(good_raster)
-# 
-# #reducing edge here would be most beneficial in bad ocean years 
-# #...............................................................
-# bad_raster <- rasterize(bad_sf, raster_template, field = "OccChange50quantile", fun = "first", background = NA)
-# 
-# #uncertainty and raw occupancy change
-# bad_raster_OccChange <- rasterize(bad_sf, raster_template, field = "raw_diff", fun = "first", background = NA)
-# bad_raster_SE <- rasterize(bad_sf, raster_template, field = "SE", fun = "first", background = NA)
-# plot(bad_raster_OccChange)
-# plot(bad_raster_SE)
-# 
-# 
-# bad_raster <- !is.na(bad_raster) * 1 #get 1,0
-# bad_raster[bad_raster == 0] <- NA
-# plot(bad_raster)
-# 
-# 
-# #reducing edge here would be most beneficial in both good and bad ocean years
-# both_have_values <- bad_raster %>% mask(good_raster)
-# plot(both_have_values)
-# 
-# both_have_values <- as.numeric(both_have_values)
-# both_have_values[both_have_values == 0] <- NA
-# 
-# plot(good_raster)
-# plot(bad_raster)
-# plot(both_have_values)
-# 
-
-#writeRaster(good_raster, "Rasters/GoodYear_odds_top90thpercentilOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
-#writeRaster(bad_raster, "Rasters/BadYear_odds_top90thpercentilOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
-#writeRaster(both_have_values, "Rasters/GoodAndBad_odds_top90thpercentilOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
-
 #-------------------------------------------
 #Build and export plotting function with actual raw differences in occupancy and SE
 background <- resample(can_cov, good_raster, method = "bilinear")
@@ -250,7 +190,7 @@ map_edge_priority(
 
 
 #--------------------------------------------------------
-#plot bainary map of quantiles
+#plot BINARY map of trop 90 areas
 map_edge_priority_binary <- function(
     good_data,   #decide to plot for good or bad years
     bad_data,
@@ -336,8 +276,55 @@ map_edge_priority_binary(
 )
 
 
+# #-----------------------------------------------
+# Make tifs for exporting priority areas
+# # #-----------------------------------------------
+# # #priority lands
+  TopLandsToReduceEdgeGoodYears <- decreaseEdgegoodYears %>% filter(OccChange50quantile >9)  
+# 
+  TopLandsToReduceEdgeBadYears <- decreaseEdgebadYears %>% filter(OccChange50quantile >9) 
+# # 
+# # # Convert the data to a spatial object
+  good_sf <- vect(TopLandsToReduceEdgeGoodYears, geom = c("x", "y"), crs = "EPSG:5070")
+  bad_sf <- vect(TopLandsToReduceEdgeBadYears, geom = c("x", "y"), crs = "EPSG:5070")
+# # 
+# # #Define the extent and resolution
+# # # Create a raster with the desired extent and resolution
+  raster_template <- rast(good_sf, resolution = 1000) 
+  crs(raster_template) <- "EPSG:5070"  # Set CRS to EPSG 5070
+# # 
+# # #reducing edge here would be most beneficial in good ocean years 
+# # #................................................................
+# # #plot quantiles
+  good_raster <- rasterize(good_sf, raster_template, field = "OccChange50quantile", fun = "first", background = NA)
+ good_raster <- !is.na(good_raster) * 1 #get 1,0
+ good_raster[good_raster == 0] <- NA
+
+# #...............................................................
+ bad_raster <- rasterize(bad_sf, raster_template, field = "OccChange50quantile", fun = "first", background = NA)
+
+ bad_raster <- !is.na(bad_raster) * 1 #get 1,0
+ bad_raster[bad_raster == 0] <- NA
+#
+# 
+ both_have_values <- bad_raster %>% mask(good_raster)
+ both_have_values <- as.numeric(both_have_values)
+ both_have_values[both_have_values == 0] <- NA
+# 
+ plot(good_raster)
+ plot(bad_raster)
+ plot(both_have_values)
+# 
+
+writeRaster(good_raster, "Rasters/GoodYear_odds_top90thAbsoluteOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
+writeRaster(bad_raster, "Rasters/BadYear_odds_top90thAbsoluteOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
+writeRaster(both_have_values, "Rasters/GoodAndBad_odds_top90thAbsoluteOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
+
+
+
+
 #EXPORTS ---------------------------------------------------
-#export quantiles:
+#export quantiles by actor bar charts 
 ggsave(
   filename = "Figures/reducingEdge50pc_RAWoccIncrease_percentiles_Good_years.tif",               # File path and name
   plot = quantilesOccChange50quantileGoodYears,          
