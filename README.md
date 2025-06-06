@@ -178,6 +178,19 @@ Figures showing how occupancy is distributed by actor
 
 
 #-------------------------
+#10B_RawOccDifferences
+#-------------------------
+#Script Description 
+Plots binary and raw occupancy differences with SE
+
+#Output
+
+Figures and maps showing how absolute occupancy increase is distributed by actor if we reduce edges 50%  
+
+
+
+
+#-------------------------
 #11_productivity_by_ownership
 #-------------------------
 #Script Description 

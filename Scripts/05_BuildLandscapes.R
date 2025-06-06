@@ -340,3 +340,17 @@ lapply(names(p058), function(name) {
   writeRaster(p058[[name]], filename = output_file, overwrite = TRUE)
 })
 
+
+#------------------------------------
+#calculate how much timber is produced in my scenarios
+INT <- read.csv("Inputs/Scenarios/yields_futu_INT.csv", na = c("", "NA")) # predicted yield curves for intensive managment, where 3 groups refer to "different site classes or low, medium, high". 
+source("Functions/process_yield_data.R")
+
+INT <- process_data(INT, colnms) %>% # %>% filter(Age <200)
+  mutate(regime = "INT") %>% 
+  select(Age,thin, m3ha,mbfac, regime,groupID,HEWA, WIFL, WIWA)
+
+
+
+0.319 * total_area
+prop_plantation_cells058 <- 0.771
