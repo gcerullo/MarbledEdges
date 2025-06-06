@@ -328,7 +328,10 @@ writeRaster(good_raster, "Rasters/GoodYear_odds_top90thAbsoluteOccupancyIncrease
 writeRaster(bad_raster, "Rasters/BadYear_odds_top90thAbsoluteOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
 writeRaster(both_have_values, "Rasters/GoodAndBad_odds_top90thAbsoluteOccupancyIncreaseFromReducingedge50pc.tif",overwrite=TRUE)
 
-
+#area of restoration priority
+good_raster %>% as.data.frame() %>% count()
+bad_raster %>% as.data.frame() %>% count()
+both_have_values %>%  as.data.frame() %>% count()
 
 
 #EXPORTS ---------------------------------------------------
