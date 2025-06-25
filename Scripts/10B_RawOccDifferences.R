@@ -18,7 +18,8 @@ long_lat <- final2020 %>% dplyr::select(point_id, x, y)
 
 raw_diff_se <- raw_diff_se %>% left_join(long_lat)
 can_cov <- rast("Rasters/GNN_2021/2025_02_11_cerullo/rasters/cancov_con_2020.tif") #canopy cover of conifers
-
+can_cov_binary <- ifel(can_cov > 0, 1, NA)
+plot(can_cov_binary)
 
 #--------------------------------
 #carry out initial filter
@@ -93,10 +94,15 @@ quantilesOccChange50quantileBadYears <- plot_data_histogram(decreaseEdgebadYears
 plot_data_histogram(decreaseEdgegoodYears, OccChange50quantile)
 
 #-------------------------------------------
-#Build and export plotting function with actual raw differences in occupancy and SE
-background <- resample(can_cov, good_raster, method = "bilinear")
+
 
 ########VIRIDIS
+# Template raster
+good_sf <- vect(decreaseEdgegoodYears, geom = c("x", "y"), crs = "EPSG:5070")
+template <- rast(good_sf, resolution = 1000)
+crs(template) <- "EPSG:5070"
+background <- terra::resample(can_cov_binary, template, method = "bilinear")  
+
 
 map_edge_priority <- function(
     good_data,   
@@ -122,6 +128,10 @@ map_edge_priority <- function(
   # Template raster
   template <- rast(good_sf, resolution = 1000)
   crs(template) <- "EPSG:5070"
+
+  
+  # # add your occupancy layers on top  
+  # plot(good_occ, col = occ_pal, breaks = good_occ_breaks, legend = TRUE, add = TRUE)  
   
   # Rasterize for each input
   good_occ <- rasterize(good_sf, template, field = occchange_col, fun = "first", background = NA)
@@ -152,25 +162,25 @@ map_edge_priority <- function(
   par(mfrow = c(2, 2), mar = c(1, 1, 3, 1), oma = c(4, 2, 2, 2))
   
   # Plot good year occupancy change
-  plot(background_raster, col = gray.colors(100, start = 1, end = 0),
+  plot(background_raster, col = "#E5E5E5",
        legend = FALSE, axes = FALSE, box = FALSE)
   plot(good_occ, col = occ_pal, breaks = good_occ_breaks, legend = TRUE, add = TRUE)
   title("Good Year Occupancy Change", line = 0.2, cex.main = 1)
   
   # Plot good year SE
-  plot(background_raster, col = gray.colors(100, start = 1, end = 0),
+  plot(background_raster, col = "#E5E5E5",
        legend = FALSE, axes = FALSE, box = FALSE)
   plot(good_se, col = se_pal, breaks = good_se_breaks, legend = TRUE, add = TRUE)
   title("Good Year Standard Error", line = 0.2, cex.main = 1)
   
   # Plot bad year occupancy change
-  plot(background_raster, col = gray.colors(100, start = 1, end = 0),
+  plot(background_raster, col = "#E5E5E5",
        legend = FALSE, axes = FALSE, box = FALSE)
   plot(bad_occ, col = occ_pal, breaks = bad_occ_breaks, legend = TRUE, add = TRUE)
   title("Bad Year Occupancy Change", line = 0.2, cex.main = 1)
   
   # Plot bad year SE
-  plot(background_raster, col = gray.colors(100, start = 1, end = 0),
+  plot(background_raster, col = "#E5E5E5",
        legend = FALSE, axes = FALSE, box = FALSE)
   plot(bad_se, col = se_pal, breaks = bad_se_breaks, legend = TRUE, add = TRUE)
   title("Bad Year Standard Error", line = 0.2, cex.main = 1)
@@ -194,7 +204,7 @@ map_edge_priority(
 
 
 #--------------------------------------------------------
-#plot BINARY map of trop 90 areas
+#plot BINARY map of top 90 areas
 map_edge_priority_binary <- function(
     good_data,   #decide to plot for good or bad years
     bad_data,
@@ -256,7 +266,7 @@ map_edge_priority_binary <- function(
   # Plot loop
   for (plot_name in names(priority_rasters)) {
     plot(background_raster,
-         col = gray.colors(100, start = 1, end = 0),
+         col = "#E5E5E5",
          legend = FALSE, axes = FALSE, box = TRUE)
     
     plot(priority_rasters[[plot_name]]$r,

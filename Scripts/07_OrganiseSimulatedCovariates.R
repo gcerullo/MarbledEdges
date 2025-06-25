@@ -117,7 +117,11 @@ for (target in production_targets) {
     filter(forest_plantation ==0) %>% 
     dplyr::select(landscape_name, point_id, Occupancy, OceanYear, lower_CI, upr_CI) %>% 
     mutate(landscape_numeric = as.numeric(gsub("patches_", "", landscape_name))) %>% 
-    mutate(landscape_name = fct_reorder(landscape_name, landscape_numeric)) 
+    arrange(landscape_numeric) %>%  # Sort from smallest to largest  
+    mutate(landscape_numeric= as.factor(landscape_numeric)) %>% 
+    #mutate(landscape_name = fct_reorder(landscape_name)) 
+    mutate(OceanYear = factor(OceanYear, 
+                            levels = c("Bad Ocean Years", "Good Ocean Years")))
   
   # # Rapid plots
   # p_plot <- plot_data %>%  
