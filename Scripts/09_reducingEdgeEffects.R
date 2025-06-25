@@ -496,6 +496,29 @@ plot_all_edges <- results_all_edges %>%  final_filt(distance = 60000, #maximum d
                                   height = 600) %>%  
   ownership_only_variation_plot()
 
+#get values for figure 3 
+values <- results_all_edges %>%  filter(distance_to_coastline < 60000 & #maximum detection in our dataframe
+                                dem30m < 600) %>%  
+  group_by(decrease_factor, ownership,OceanYear) %>%  
+  summarise(med_vals = median(Occupancy)) %>%  
+  filter(decrease_factor %in% c(0, 0.5)) %>%  
+  filter(ownership %in% c("Federal", "Private Conservation")) %>%  
+  arrange(OceanYear, ownership)
+
+# Calculate percentage change
+results_summary <- values %>%
+  group_by(ownership, OceanYear) %>%
+  summarise(
+    perc_change = 100 * (med_vals[decrease_factor == 0.5] - med_vals[decrease_factor == 0]) / med_vals[decrease_factor == 0],
+    .groups = "drop"
+  )
+
+# View results
+print(results_summary)
+
+# View results
+results_summary
+
 test_all <- results_all_edges %>%  dplyr::select(point_id)
 #plot for landscape edges 
 

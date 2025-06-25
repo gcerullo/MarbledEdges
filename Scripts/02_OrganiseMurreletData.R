@@ -99,7 +99,7 @@ analysisSurveys = analysisSites %>%
 #quick summary
 detections <- analysisSurveys %>% filter(detected == 1)
 detections %>% count() #761 detections 
- analysisSites %>% select(id) %>% unique() %>% count()  #20149
+ analysisSites %>% dplyr::select(id) %>% unique() %>% count()  #20149
 analysisSurveys %>% count() #29323 surveys
 
 
