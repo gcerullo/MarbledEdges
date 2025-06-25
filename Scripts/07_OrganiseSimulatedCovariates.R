@@ -3,12 +3,15 @@
 # Load necessary libraries
 library(tidyverse)
 library(data.table)
+library(unmarked)
+library(lme4)
 library(terra)
 library(raster)
 library(RColorBrewer)
 library(stringr)
+library(Matrix)
 
-source("scripts/01_DeterminePredictors.R")
+source("scripts/01_OceanPredictors.R")
 source("scripts/02_OrganiseMurreletData.R")
 
 # Define the production targets
@@ -31,8 +34,8 @@ current_dist <- covariates$scaleCoastDist %>% unique()
 original_value <- (current_dist * coast_sd) + coast_mean
 print(original_value)
 
-#add different distances to the coast
-covariates <- covariates %>%  crossing(coast_levels)
+# #add different distances to the coast
+# covariates <- covariates %>%  crossing(coast_levels)
 
 # Loop through production targets
 for (target in production_targets) {
@@ -133,7 +136,7 @@ for (target in production_targets) {
   #   )
   
   p_plot <- plot_data %>%  
-    ggplot(aes(x = landscape_name, y = Occupancy)) +
+    ggplot(aes(x = landscape_numeric, y = Occupancy)) +
     # Plot the points with jitterdodge (so they stay behind the boxplot)
     #geom_point(aes(color = OceanYear), size = 2, alpha = 0.05, position = position_jitterdodge(jitter.width = 0.1)) +  # Points with jitter
     # Plot the boxplots
@@ -144,7 +147,7 @@ for (target in production_targets) {
  #   facet_wrap(~CoastDist, ncol = 4) +  # Facet by Coastal Distance
     theme_minimal(base_size = 18) +  # Minimal theme with larger base font size
     ylim(0,1)+
-    labs(x = "Increasing landscape fragmentation ->", y = "Occupancy") +
+    labs(x = "Number of patches (degree of fragmentation per se)", y = "Occupancy") +
     theme(
         legend.position = "top",  # Position the legend at the top
         legend.title = element_blank(),  # Increase legend title size for clarity

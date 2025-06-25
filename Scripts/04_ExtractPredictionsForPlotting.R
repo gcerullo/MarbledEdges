@@ -4,7 +4,7 @@ library(unmarked)
 library(terra)
 library(ggcorrplot)
 
-source("scripts/01_DeterminePredictors.R")
+source("scripts/01_OceanPredictors.R")
 source("scripts/02_OrganiseMurreletData.R")
 # Read in unmarked object
 analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
@@ -39,7 +39,7 @@ q95 <- PC1_quantiles %>% pull(q95)
 
 
 pc1_levels <- c(q10,
-                #q50,
+                #q20,
                 q90)
                 #takes 10th percentile
                
