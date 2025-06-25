@@ -261,3 +261,14 @@ ggsave(
   device = "png",                                                # Save as PNG
   bg = "white"                                                   # White background
 )
+
+ggsave(
+  filename = "Figures/yields_distCoast_diffMethods.pdf",  # File path and name
+  plot = yields_distCoast_diffMethods,                                         # The plot object
+  width = 8.27,                                                  # A4 width in inches
+  height = 11.69,                                                # A4 height in inches
+  dpi = 300,                                                     # Print-quality resolution
+  units = "in",                                                  # Units in inches
+  device = "pdf",                                                # Save as PNG
+  bg = "white"                                                   # White background
+)
