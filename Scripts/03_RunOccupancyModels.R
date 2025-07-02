@@ -26,9 +26,9 @@ print(presence_absence_summary)
 # The `occu` function estimates two probabilities:
 # 1. Detection probability (p): Probability of detecting a species if present.
 # 2. Occupancy probability (ψ): Probability that a site is occupied.
-      #Structure is as follows: ~ detection predictors ~ occupancy predictors
-      #The first ~: Defines covariates for detection probability (p).
-      #The second ~: Defines covariates for occupancy probability (ψ).
+#Structure is as follows: ~ detection predictors ~ occupancy predictors
+#The first ~: Defines covariates for detection probability (p).
+#The second ~: Defines covariates for occupancy probability (ψ).
 #Fit occupancy models 
 
 
@@ -281,40 +281,40 @@ k_fold_mod8 <- crossVal(
   statistic = unmarked:::RMSE_MAE ,      
   parallel = FALSE)
 
- kfold_list <- list(k_fold_mod1,k_fold_mod2, k_fold_mod3, k_fold_mod4, k_fold_mod5,k_fold_mod6, k_fold_mod7, k_fold_mod8)
+kfold_list <- list(k_fold_mod1,k_fold_mod2, k_fold_mod3, k_fold_mod4, k_fold_mod5,k_fold_mod6, k_fold_mod7, k_fold_mod8)
 # saveRDS(kfold_list, "Models/Kfold_all_model_performance.rds")
 
- kfold_list <- readRDS("Models/Kfold_all_model_performance.rds")
- 
- # Extract RMSE and MAE summary values from each unmarkedCrossVal object
- extract_cv_metrics <- function(obj, i) {
-   sum_df <- obj@summary
-   tibble(
-     Model = paste0("Model ", i),
-     RMSE = round(sum_df$Estimate[1], 4),
-     RMSE_SD = round(sum_df$SD[1], 4),
-     MAE = round(sum_df$Estimate[2], 4),
-     MAE_SD = round(sum_df$SD[2], 4)
-   )
- }
- 
- # Apply across all models
- kfold_summary_df <- map_dfr(seq_along(kfold_list), ~ extract_cv_metrics(kfold_list[[.x]], .x))
- 
- # Create and style the flextable
- ft_kfold <- flextable(kfold_summary_df) %>%
-   set_caption("Table 3. Ten-fold cross-validation results from occupancy models showing RMSE and MAE with standard deviations.") %>%
-   autofit() %>%
-   align(align = "center", part = "all") %>%
-   bold(i = 1, part = "header")
- 
- # Export to Word
- doc <- read_docx() %>%
-   body_add_par("Cross-validation Performance", style = "heading 1") %>%
-   body_add_flextable(ft_kfold)
- 
- print(doc, target = "Models/Tables/kfold_model_comparison_table.docx")
- 
+kfold_list <- readRDS("Models/Kfold_all_model_performance.rds")
+
+# Extract RMSE and MAE summary values from each unmarkedCrossVal object
+extract_cv_metrics <- function(obj, i) {
+  sum_df <- obj@summary
+  tibble(
+    Model = paste0("Model ", i),
+    RMSE = round(sum_df$Estimate[1], 4),
+    RMSE_SD = round(sum_df$SD[1], 4),
+    MAE = round(sum_df$Estimate[2], 4),
+    MAE_SD = round(sum_df$SD[2], 4)
+  )
+}
+
+# Apply across all models
+kfold_summary_df <- map_dfr(seq_along(kfold_list), ~ extract_cv_metrics(kfold_list[[.x]], .x))
+
+# Create and style the flextable
+ft_kfold <- flextable(kfold_summary_df) %>%
+  set_caption("Table 3. Ten-fold cross-validation results from occupancy models showing RMSE and MAE with standard deviations.") %>%
+  autofit() %>%
+  align(align = "center", part = "all") %>%
+  bold(i = 1, part = "header")
+
+# Export to Word
+doc <- read_docx() %>%
+  body_add_par("Cross-validation Performance", style = "heading 1") %>%
+  body_add_flextable(ft_kfold)
+
+print(doc, target = "Models/Tables/kfold_model_comparison_table.docx")
+
 
 
 #Save best model ####
@@ -407,7 +407,7 @@ final_table <- bind_rows(
     PValue = case_when(
       PValue < 0.001 ~ "< 0.001",
       TRUE ~ format(round(PValue, 3), nsmall = 3)
-  ))
+    ))
 final_table
 
 # Create a formatted flextable
@@ -423,6 +423,3 @@ doc2 <- read_docx() %>%
 
 #Export best performing table
 #print(doc2, target = "Models/Tables/best_model_coefficients_table.docx")
-
-
-
