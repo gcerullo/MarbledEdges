@@ -12,6 +12,8 @@ library(officer)
 
 #read in unmarked object
 analysisData <- readRDS("Outputs/analysisDataUnmarked.rds")
+source("scripts/02_OrganiseMurreletData.R")
+
 
 # --- OCCUPANCY MODELING WITH INTERACTIONS ---
 
@@ -421,5 +423,60 @@ doc2 <- read_docx() %>%
   body_add_par("Best-performing Model Coefficients Table", style = "heading 1") %>%
   body_add_flextable(ft2)
 
-#Export best performing table
-#print(doc2, target = "Models/Tables/best_model_coefficients_table.docx")
+# Reproduce manuscript results for model derived estimates
+
+
+#To get your estimates on the odds scale, exponentiate the estimate and the bounds of the CI. Then, say you get e^b = 1.2. This would indicate that you multiply the odds by 1.2 for every 1-unit increase in x, or, going from x to x + 1, you get a 20% increase in the odds of occupancy.
+
+# Get means and ds
+meansAndSds
+
+#DISTANCE TO COAST 
+#Beta = -0.640
+#Odds ratio 
+exp(-0.640) #roughly halvin 
+#Percentage change (roughly 50% decline for each 18450 m inland)
+(exp(-0.640) - 1) * 100
+meansAndSds$sdCoastDist
+#confidence intervals 
+exp(-0.770)
+exp(-0.509)
+
+
+#HABITAT AMOUNT LANDSCAPE 
+meansAndSds$sdHabAmountDich2000
+pi * 2000^2
+#Total area = π × r² = π × 100² = 31416.0 m²
+#22% of this area = 0.22 × 31416.0 = 6912.0 m²
+meansAndSds$sdHabAmountDich2000 * (pi * 2000^2) # one unit (or SD) in m2
+meansAndSds$sdHabAmountDich2000 * (pi * 2000^2)/10000 #one unit (or SD) in ha
+#percentage change
+(exp(0.492) - 1) * 100
+#confidence intervals
+(exp(0.356) - 1) * 100
+(exp(0.628) - 1) * 100
+
+#HABITAT AMOUNT LOCAL 
+meansAndSds$sdHabAmountDich100
+pi * 2000^2
+#Total area = π × r² = π × 100² = 31416.0 m²
+#22% of this area = 0.22 × 31416.0 = 6912.0 m²
+meansAndSds$sdHabAmountDich100 * (pi * 100^2)/10000 #one unit (or SD) in ha
+#percentage change
+(exp(0.318) - 1) * 100
+#confidence intervals
+(exp(0.185) - 1) * 100
+(exp(0.452) - 1) * 100
+
+
+#EDGE AMOUNT LANDSCAPE 
+meansAndSds$sdEdgeRook2000
+pi * 2000^2
+
+#percentage change
+(exp(-0.546) - 1) * 100
+#confidence intervals
+(exp(0.185) - 1) * 100
+(exp(0.452) - 1) * 100
+
+
