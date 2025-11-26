@@ -281,7 +281,6 @@ predict_data <- predict_data %>%  mutate(
 )
 
 
-
 # Step 3: Predict Occupancy with standard errors (for error ribbon)
 predictions <- predict(
   model,  
@@ -304,8 +303,6 @@ edge_sd <- sd(siteCovs(analysisData)$edgeRook_2000_40, na.rm = TRUE)
 
 # Add unscaled values to the dataset
 predict_data$UnscaledEdgeDens2000 <- (predict_data$scaleEdgeDens2000 * edge_sd) + edge_mean
-
-
 
 predict_data$habAmount <- factor(
   predict_data$scaleHabAmount2000,
@@ -353,6 +350,104 @@ ocean_murrelet_hab_occ <-
 ocean_murrelet_hab_occ
 
 
+# ============================================================================
+# calculate effect of going from 3 to 10% edge in good and bad years 
+# ============================================================================
+#Nb used delta method to impute confidence intervals for percentage change
+
+#Get occupancy values 
+#3% edge
+pc3 <- predict_data %>%  
+  filter(UnscaledEdgeDens2000 >= 0.03, UnscaledEdgeDens2000 <= 0.032)
+#BAD YEARs = 0.09117011 (se = 0.01152742)
+#GOOD YEARs = 0.13546040 (se  = 0.01337922)
+
+#10% edge
+pc10 <- predict_data %>%  
+  filter(UnscaledEdgeDens2000 >= 0.1, UnscaledEdgeDens2000 <= 0.102)
+#BAD YEARs = 0.01223880 (se = 0.004687203)
+#GOOD YEARs = 0.04460866 (se = 0.009514573)
+
+
+# store occupancy values and standard errors
+prob_3pct_bad <- 0.09117011
+prob_10pct_bad <- 0.01223880
+prob_3pct_good <- 0.13546040
+prob_10pct_good <- 0.04460866
+
+se_3pct_bad <- 0.01152742
+se_10pct_bad <- 0.004687203
+se_3pct_good <- 0.01337922
+se_10pct_good <- 0.009514573
+
+# Function to calculate odds ratio CI using delta method
+calculate_odds_ratio_ci <- function(p1, p2, se1, se2, alpha = 0.05) {
+  # Convert probabilities to odds
+  odds1 <- p1 / (1 - p1)
+  odds2 <- p2 / (1 - p2)
+  
+  # Odds ratio
+  or_value <- odds2 / odds1
+  
+  # Delta method for log(OR) variance
+  # Var(log(OR)) ≈ Var(log(odds2)) + Var(log(odds1))
+  # where Var(log(odds)) ≈ (1/p + 1/(1-p))² × Var(p)
+  
+  var_log_odds1 <- (1/p1 + 1/(1-p1))^2 * se1^2
+  var_log_odds2 <- (1/p2 + 1/(1-p2))^2 * se2^2
+  
+  var_log_or <- var_log_odds1 + var_log_odds2
+  se_log_or <- sqrt(var_log_or)
+  
+  # Critical value for 95% CI
+  z_crit <- qnorm(1 - alpha/2)
+  log_or <- log(or_value)
+  
+  # CI for log(OR)
+  log_or_lower <- log_or - z_crit * se_log_or
+  log_or_upper <- log_or + z_crit * se_log_or
+  
+  # Transform back to OR scale
+  or_lower <- exp(log_or_lower)
+  or_upper <- exp(log_or_upper)
+  
+  # Convert to percentage change
+  pct_change <- (or_value - 1) * 100
+  pct_lower <- (or_lower - 1) * 100
+  pct_upper <- (or_upper - 1) * 100
+  
+  return(list(
+    odds_ratio = or_value,
+    or_ci_lower = or_lower,
+    or_ci_upper = or_upper,
+    pct_change = pct_change,
+    pct_ci_lower = pct_lower,
+    pct_ci_upper = pct_upper
+  ))
+}
+
+# Calculate results
+good_results <- calculate_odds_ratio_ci(prob_3pct_good, prob_10pct_good, 
+                                        se_3pct_good, se_10pct_good)
+
+bad_results <- calculate_odds_ratio_ci(prob_3pct_bad, prob_10pct_bad, 
+                                       se_3pct_bad, se_10pct_bad)
+
+# generate manuscript text
+cat("MANUSCRIPT TEXT:\n")
+cat("================\n")
+cat("For example, following good ocean years, the odds of occupancy was reduced by", 
+    abs(round(good_results$pct_change, 1)), "% [", 
+    abs(round(good_results$pct_ci_upper, 1)), "%, ", 
+    abs(round(good_results$pct_ci_lower, 1)), 
+    "%] when going from just 3% to 10% edge within a 2000 m radius, but following bad ocean years, the corresponding reduction was", 
+    abs(round(bad_results$pct_change, 1)), "% [", 
+    abs(round(bad_results$pct_ci_upper, 1)), "%, ", 
+    abs(round(bad_results$pct_ci_lower, 1)), "%].\n")
+
+
+#.....................................................................
+
 #Save outputs #### 
 
 # Save the plot using ggsave
@@ -366,6 +461,19 @@ ggsave(
   device = "png",                       # Output format
   bg = "white"                          # Set background to white
 )
+
+# Save as pdf
+ggsave(
+  filename = "Figures/murrelet_by_ocean_and_edge.pdf",               # File path and name (changed to .pdf)
+  plot = ocean_murrelet_by_ocean_and_edge,          
+  width = 10,                            # Width in inches (publication size)
+  height = 8,                           # Height in inches (publication size)
+  dpi = 300,                            # Resolution for publication (300 DPI)
+  units = "in",                         # Units for width and height
+  device = "pdf",                       # Output format (changed to pdf)
+  bg = "white"                          # Set background to white
+)
+
 
 # Save the plot using ggsave
 ggsave(

@@ -53,6 +53,42 @@ SDM2020 <- rast(tif2020)
 
 # Step 5: Visualize the SDM raster
 plot(SDM2020)
+plot(can_cov)
+
+
+
+#####
+
+#MAKE BACKGROUND SDM FOR GRAPHICAL ABSTRACT
+# 1. Crop SDM2020 to the mask extent
+can_cov_binary <- ifel(can_cov > 0, 1, NA)
+can_cov_crop <- terra::crop(can_cov_binary, SDM2020)
+SDM2020_crop <- terra::crop(SDM2020, can_cov_crop)
+# 2. Resample cropped SDM to the *grid* of can_cov_crop
+SDM2020_align <- terra::resample(SDM2020_crop, can_cov_crop, method = "bilinear")
+# 3. Now masking will work
+getwd()
+sdm_masked <- terra::mask(SDM2020_align, can_cov_crop)
+plot(sdm_masked)
+png("Figures/background_sdm.png", width = 2000, height = 2000, res = 300)
+plot(sdm_masked)
+dev.off()
+####
+
+
+#Make plot for graphical abstract
+test_rast <- rast("Rasters/GoodYear_odds_top90thAbsoluteOccupancyIncreaseFromReducingedge50pc.tif")
+plot(test_rast)
+shp <- vect("Rasters/boundary/PAL-polygon.shp")
+shp_aligned <- project(shp, SDM2020)
+plot(shp_aligned)
+plot(SDM2020)
+cropped_masked <- mask(crop(SDM2020, shp_aligned), shp_aligned)
+plot(cropped_masked)
+
+# Plot using viridis; NA values will be white
+plot(SDM2020, colNA = "white")
+
 
 # Step 6: Ensure the SDM raster has the same CRS and extent and alignment as the GNN raster (can_cov)
 # Crop SDM to the extent of the can_cov raster

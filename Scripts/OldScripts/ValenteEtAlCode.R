@@ -143,6 +143,30 @@ analysisSites %>%
 # This includes detection data (`y`), site-level covariates (`siteCovs`), and observation-level covariates (`obsCovs`)
 analysisData = unmarkedFrameOccu(y = y, siteCovs = analysisSites, obsCovs = surveyCovs)
 
+#check resurveys
+
+# Extract the detection history matrix
+y_mat <- analysisData@y  # Rows = sites, Columns = visits
+
+# Number of sites
+n_sites <- nrow(y_mat)
+
+# Number of visits per site (i.e., non-NA columns)
+visits_per_site <- apply(y_mat, 1, function(x) sum(!is.na(x)))
+
+# Summarize
+summary_stats <- list(
+  total_sites = n_sites,
+  mean_visits = mean(visits_per_site),
+  median_visits = median(visits_per_site),
+  min_visits = min(visits_per_site),
+  max_visits = max(visits_per_site),
+  visits_distribution = table(visits_per_site)
+)
+
+summary_stats
+sum(visits_per_site >= 2)
+
 #####
 # Occupancy Modeling
 # Check the presence/absence pattern by calculating the maximum detection across surveys per site
